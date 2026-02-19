@@ -15,6 +15,10 @@ export type PublicLogicRuntimeConfig = {
       auditListName?: string;
     };
   };
+  puddleJumper?: {
+    baseUrl?: string;
+    path?: string;
+  };
   allowedEmails?: string[];
 };
 
@@ -65,4 +69,43 @@ export function getSharePointRuntimeConfig() {
       auditListName: custom.sharepoint?.vault?.auditListName ?? "PL_PRR_Audit",
     },
   };
+}
+
+type ResolvePjArgs = {
+  nodeEnv?: string;
+  origin?: string;
+  envPjBaseUrl?: string;
+};
+
+export function resolvePuddleJumperUrl(args: ResolvePjArgs = {}): string {
+  const runtime = getRuntimeConfig();
+  const nodeEnv = args.nodeEnv ?? (import.meta.env.PROD ? "production" : "development");
+  const origin = args.origin ?? window.location.origin;
+  const fromEnv = args.envPjBaseUrl ?? (import.meta.env.VITE_PJ_BASE_URL as string | undefined);
+  const configured = runtime.puddleJumper?.baseUrl ?? fromEnv ?? runtime.puddleJumper?.path ?? "/pj";
+
+  if (!configured || configured.trim().length === 0) {
+    return "/pj";
+  }
+
+  const trimmed = configured.trim();
+  if (trimmed.startsWith("/")) {
+    return trimmed;
+  }
+
+  let resolved: URL;
+  try {
+    resolved = new URL(trimmed, origin);
+  } catch {
+    return "/pj";
+  }
+
+  if (nodeEnv === "production" && resolved.protocol === "http:") {
+    resolved = new URL(resolved.toString());
+    resolved.protocol = "https:";
+    // eslint-disable-next-line no-console
+    console.warn("PJ_BASE_URL used http in production; forcing https.");
+  }
+
+  return resolved.toString();
 }

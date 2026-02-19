@@ -7,6 +7,15 @@ const __BASE_URL__ = (() => {
   return window.location.origin + dir;
 })();
 
+const __PJ_BASE_URL__ = (() => {
+  const host = window.location.hostname;
+  const isLocal = host === "localhost" || host === "127.0.0.1";
+  if (isLocal) {
+    return `${window.location.protocol}//${host}:3002/pj`;
+  }
+  return "/pj";
+})();
+
 window.PUBLICLOGIC_OS_CONFIG = {
   msal: {
     clientId: "1b53d140-0779-4a64-943c-a11ba19ec0ce",
@@ -27,6 +36,9 @@ window.PUBLICLOGIC_OS_CONFIG = {
       casesListName: "PL_PRR_Cases",
       auditListName: "PL_PRR_Audit",
     },
+  },
+  puddleJumper: {
+    baseUrl: __PJ_BASE_URL__,
   },
   allowedEmails: ["nate@publiclogic.org", "allie@publiclogic.org"],
 };

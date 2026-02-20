@@ -58,7 +58,7 @@ export default function ResidentSubmission() {
   const form = useForm<FormValues>({
     resolver: zodResolver(Schema),
     mode: "onChange",
-    defaultValues: { agree: false, email: "", phone: "" },
+    defaultValues: { agree: false as unknown as true, email: "", phone: "" },
   });
 
   const receivedAt = useMemo(() => new Date(), []);
@@ -163,7 +163,7 @@ export default function ResidentSubmission() {
       packet,
       attachmentsCount: files.length,
     });
-    form.reset({ name: "", email: "", phone: "", requestText: "", agree: false });
+    form.reset({ name: "", email: "", phone: "", requestText: "", agree: false as unknown as true });
     setAttachments([]);
 
     if (sp) {
@@ -195,7 +195,7 @@ export default function ResidentSubmission() {
 
         <form
           className="mt-6 flex flex-col gap-5"
-          onSubmit={form.handleSubmit(onSubmit)}
+          onSubmit={form.handleSubmit(onSubmit as Parameters<typeof form.handleSubmit>[0])}
         >
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
@@ -249,7 +249,7 @@ export default function ResidentSubmission() {
             <label className="flex cursor-pointer items-start gap-3">
               <Checkbox
                 checked={form.watch("agree")}
-                onCheckedChange={(v) => form.setValue("agree", v === true)}
+                onCheckedChange={(v) => form.setValue("agree", (v === true) as true)}
               />
               <span className="text-sm font-semibold text-foreground">
                 I acknowledge this is a public records request under M.G.L. c. 66

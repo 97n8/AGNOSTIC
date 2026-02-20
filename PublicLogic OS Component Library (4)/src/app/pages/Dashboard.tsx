@@ -358,7 +358,7 @@ export default function Dashboard() {
     const trimmed = captureText.trim();
     if (!trimmed) return;
     const input: CaptureInput = {
-      title: trimmed.split("\n")[0].slice(0, 120) || "Capture",
+      title: (trimmed.split("\n")[0] ?? "").slice(0, 120) || "Capture",
       body: trimmed,
       recordType: "CAPTURE",
       status: "INBOX",
@@ -449,7 +449,7 @@ export default function Dashboard() {
           <>
             <CheckCircle2 className="h-4 w-4 text-green-600" />
             <span className="text-sm font-medium">
-              Role: {showcaseRole[0].toUpperCase()}{showcaseRole.slice(1)}
+              Role: {showcaseRole[0]?.toUpperCase()}{showcaseRole.slice(1)}
             </span>
           </>
         );
@@ -587,7 +587,7 @@ export default function Dashboard() {
               >
                 {SHOWCASE_ROLES.map((role) => (
                   <option key={role} value={role}>
-                    {role[0].toUpperCase() + role.slice(1)}
+                    {(role[0]?.toUpperCase() ?? "") + role.slice(1)}
                   </option>
                 ))}
               </select>

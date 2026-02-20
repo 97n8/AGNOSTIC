@@ -19,7 +19,7 @@ const BUILTIN_PLAYBOOKS = [
 ] as const;
 
 export default function Playbooks() {
-  const [active, setActive] = useState(BUILTIN_PLAYBOOKS[0].id);
+  const [active, setActive] = useState<typeof BUILTIN_PLAYBOOKS[number]["id"]>(BUILTIN_PLAYBOOKS[0].id);
   const doc = useMemo(
     () => BUILTIN_PLAYBOOKS.find((d) => d.id === active) ?? BUILTIN_PLAYBOOKS[0],
     [active],

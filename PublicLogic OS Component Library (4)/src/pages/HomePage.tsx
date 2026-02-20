@@ -4,6 +4,7 @@ import {
   BookOpen,
   Globe,
   Briefcase,
+  LayoutGrid,
   Settings,
   LogOut,
   Search,
@@ -620,3 +621,6 @@ export function LogicCommonsOS() {
     </div>
   );
 }
+
+export const HomePage = LogicCommonsOS;
+export default LogicCommonsOS;

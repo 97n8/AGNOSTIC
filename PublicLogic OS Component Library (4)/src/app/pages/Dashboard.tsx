@@ -355,10 +355,10 @@ export default function Dashboard() {
   }, [account, instance, qc]);
 
   const saveCapture = useCallback(async () => {
-    const trimmed = captureText.trim();
+    const trimmed = (captureText ?? "").trim();
     if (!trimmed) return;
     const input: CaptureInput = {
-      title: trimmed.split("\n")[0].slice(0, 120) || "Capture",
+      title: trimmed.split("\n")[0]?.slice(0, 120) || "Capture",
       body: trimmed,
       recordType: "CAPTURE",
       status: "INBOX",
@@ -444,15 +444,17 @@ export default function Dashboard() {
 
   const microsoftStatusContent = (() => {
     switch (microsoftState) {
-      case "showcase":
+      case "showcase": {
+        const formattedRole = `${showcaseRole?.charAt(0).toUpperCase() ?? ""}${showcaseRole?.slice(1) ?? ""}`;
         return (
           <>
             <CheckCircle2 className="h-4 w-4 text-green-600" />
             <span className="text-sm font-medium">
-              Role: {showcaseRole[0].toUpperCase()}{showcaseRole.slice(1)}
+              Role: {formattedRole || "Operator"}
             </span>
           </>
         );
+      }
       case "authenticating":
         return (
           <>
@@ -612,7 +614,7 @@ export default function Dashboard() {
               >
                 {SHOWCASE_ROLES.map((role) => (
                   <option key={role} value={role}>
-                    {role[0].toUpperCase() + role.slice(1)}
+                    {role.charAt(0).toUpperCase() + role.slice(1)}
                   </option>
                 ))}
               </select>

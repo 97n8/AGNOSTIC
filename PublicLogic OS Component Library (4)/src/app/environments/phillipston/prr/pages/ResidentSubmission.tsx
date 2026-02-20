@@ -32,7 +32,7 @@ const Schema = z.object({
     ),
   phone: z.string().trim().optional(),
   requestText: z.string().trim().min(3, "Please provide request details"),
-  agree: z.literal(true, { message: "Required" }),
+  agree: z.boolean({ message: "Required" }).refine((v) => v === true, { message: "Required" }),
 });
 
 type FormValues = z.infer<typeof Schema>;
@@ -58,7 +58,7 @@ export default function ResidentSubmission() {
   const form = useForm<FormValues>({
     resolver: zodResolver(Schema),
     mode: "onChange",
-    defaultValues: { agree: false as unknown as true, email: "", phone: "" },
+    defaultValues: { agree: false, email: "", phone: "" },
   });
 
   const receivedAt = useMemo(() => new Date(), []);
@@ -163,7 +163,7 @@ export default function ResidentSubmission() {
       packet,
       attachmentsCount: files.length,
     });
-    form.reset({ name: "", email: "", phone: "", requestText: "", agree: false as unknown as true });
+    form.reset({ name: "", email: "", phone: "", requestText: "", agree: false });
     setAttachments([]);
 
     if (sp) {
@@ -195,7 +195,7 @@ export default function ResidentSubmission() {
 
         <form
           className="mt-6 flex flex-col gap-5"
-          onSubmit={form.handleSubmit(onSubmit as Parameters<typeof form.handleSubmit>[0])}
+          onSubmit={form.handleSubmit(onSubmit)}
         >
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
@@ -249,7 +249,7 @@ export default function ResidentSubmission() {
             <label className="flex cursor-pointer items-start gap-3">
               <Checkbox
                 checked={form.watch("agree")}
-                onCheckedChange={(v) => form.setValue("agree", (v === true) as true)}
+                onCheckedChange={(v) => form.setValue("agree", v === true)}
               />
               <span className="text-sm font-semibold text-foreground">
                 I acknowledge this is a public records request under M.G.L. c. 66

@@ -11,9 +11,10 @@ const __PJ_BASE_URL__ = (() => {
   const host = window.location.hostname;
   const isLocal = host === "localhost" || host === "127.0.0.1";
   if (isLocal) {
-    return `${window.location.protocol}//${host}:3002/pj`;
+    // Keep PJ same-origin in local dev; Vite proxies /pj -> backend :3002.
+    return "/pj";
   }
-  return "/pj";
+  return "https://pj.publiclogic.org";
 })();
 
 window.PUBLICLOGIC_OS_CONFIG = {

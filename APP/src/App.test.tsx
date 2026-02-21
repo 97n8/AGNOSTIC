@@ -246,6 +246,17 @@ describe('Shell after repo selection', () => {
     }
   })
 
+  it('renders nav group section labels', async () => {
+    await renderAndPick()
+    const groups = document.querySelectorAll('.nav-group-label')
+    expect(groups.length).toBeGreaterThanOrEqual(4)
+    const labels = Array.from(groups).map(g => g.textContent)
+    expect(labels).toContain('Overview')
+    expect(labels).toContain('Work')
+    expect(labels).toContain('Infrastructure')
+    expect(labels).toContain('Governance')
+  })
+
   it('Dashboard shows metric cards', async () => {
     await renderAndPick()
     expect(screen.getByText('Open Issues')).toBeInTheDocument()
@@ -273,6 +284,13 @@ describe('Shell after repo selection', () => {
     expect(screen.getByRole('button', { name: 'open' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'closed' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'all' })).toBeInTheDocument()
+  })
+
+  it('Issues filter tabs have button class for consistent styling', async () => {
+    await renderAndPick()
+    fireEvent.click(screen.getAllByText('Issues')[0])
+    const tabs = document.querySelectorAll('.filter-tabs .button')
+    expect(tabs.length).toBe(3)
   })
 
   it('navigates to PRs page', async () => {

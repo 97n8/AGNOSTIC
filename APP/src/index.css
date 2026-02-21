@@ -32,6 +32,19 @@
   --color-text: #0f172a;
   --color-primary: #2563eb;
   --color-primary-soft: #dbeafe;
+
+  /* semantic status */
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+  --color-info: #3b82f6;
+  --color-accent: #7c3aed;
+
+  /* timing */
+  --transition-fast: 150ms ease;
+
+  /* mono stack */
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
 }
 
 [data-theme='dark'] {
@@ -42,6 +55,12 @@
   --color-text: #f1f5f9;
   --color-primary: #3b82f6;
   --color-primary-soft: #1e3a8a;
+
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-info: #60a5fa;
+  --color-accent: #a78bfa;
 }
 
 *,
@@ -111,7 +130,7 @@ body {
   background: var(--color-surface);
   color: var(--color-text);
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: all var(--transition-fast);
 }
 
 .button:hover {
@@ -135,7 +154,17 @@ body {
   font-size: var(--text-sm);
   color: var(--color-muted);
   cursor: pointer;
-  transition: background 150ms ease;
+  transition: background var(--transition-fast);
+}
+
+.nav-group-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+  padding: var(--space-3) var(--space-3) var(--space-1);
+  user-select: none;
 }
 
 .nav-item:hover {

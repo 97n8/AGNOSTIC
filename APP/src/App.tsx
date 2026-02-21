@@ -388,6 +388,14 @@ function CreateModal({ onClose }: { onClose: () => void }) {
 const NAV_PAGES = ['Dashboard', 'Today', 'Issues', 'PRs', 'Lists', 'CI', 'Pipeline', 'Branches', 'Labels', 'Files', 'Projects', 'Playbooks', 'Tools', 'Cases', 'Vault', 'Environments', 'Settings'] as const
 type NavPage = (typeof NAV_PAGES)[number]
 
+const NAV_GROUPS: { label: string; pages: readonly NavPage[] }[] = [
+    { label: 'Overview', pages: ['Dashboard', 'Today'] },
+    { label: 'Work', pages: ['Issues', 'PRs', 'Lists', 'Cases'] },
+    { label: 'Infrastructure', pages: ['CI', 'Pipeline', 'Branches', 'Files', 'Vault', 'Environments'] },
+    { label: 'Governance', pages: ['Labels', 'Projects', 'Playbooks', 'Tools'] },
+    { label: '', pages: ['Settings'] },
+]
+
 function CommandPalette({ onClose, onNav, onSwitchRepo, onCreateOpen }: {
     onClose: () => void
     onNav: (page: NavPage) => void
@@ -478,12 +486,17 @@ export default function App() {
                     <span>{ctx.owner}/{ctx.repo}</span>
                 </div>
                 <nav className="nav">
-                    {NAV_PAGES.map(n => (
-                        <button key={n} className={`nav-item${page === n ? ' active' : ''}`} type="button" onClick={() => setPage(n)}>
-                            {n}
-                            {n === 'Issues' && <Badge n={openIssues.length} />}
-                            {n === 'PRs' && <Badge n={openPRs.length} />}
-                        </button>
+                    {NAV_GROUPS.map((g, gi) => (
+                        <div key={gi}>
+                            {g.label && <div className="nav-group-label">{g.label}</div>}
+                            {g.pages.map(n => (
+                                <button key={n} className={`nav-item${page === n ? ' active' : ''}`} type="button" onClick={() => setPage(n)}>
+                                    {n}
+                                    {n === 'Issues' && <Badge n={openIssues.length} />}
+                                    {n === 'PRs' && <Badge n={openPRs.length} />}
+                                </button>
+                            ))}
+                        </div>
                     ))}
                 </nav>
                 <div className="sidebar-footer">
@@ -542,9 +555,9 @@ export default function App() {
                 {page === 'Issues' && (
                     <section className="page-issues">
                         <div className="filter-tabs">
-                            <button type="button" className={issueFilter === 'open' ? 'active' : ''} onClick={() => setIssueFilter('open')}>open</button>
-                            <button type="button" className={issueFilter === 'closed' ? 'active' : ''} onClick={() => setIssueFilter('closed')}>closed</button>
-                            <button type="button" className={issueFilter === 'all' ? 'active' : ''} onClick={() => setIssueFilter('all')}>all</button>
+                            <button type="button" className={`button${issueFilter === 'open' ? ' active' : ''}`} onClick={() => setIssueFilter('open')}>open</button>
+                            <button type="button" className={`button${issueFilter === 'closed' ? ' active' : ''}`} onClick={() => setIssueFilter('closed')}>closed</button>
+                            <button type="button" className={`button${issueFilter === 'all' ? ' active' : ''}`} onClick={() => setIssueFilter('all')}>all</button>
                         </div>
                         {filteredIssues.length === 0
                             ? <EmptyState text="No open issues" loading={live.loading} />

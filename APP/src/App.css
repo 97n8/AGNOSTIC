@@ -1,7 +1,15 @@
+/* ─── Brand ─────────────────────────────────────────── */
 .brand-block {
 	margin-bottom: var(--space-6);
 }
 
+.brand-title {
+	margin: var(--space-1) 0 0;
+	font-size: var(--text-xl);
+	line-height: 1.2;
+}
+
+/* ─── Shared label pattern ───────────────────────────── */
 .brand-label,
 .meta-label {
 	margin: 0;
@@ -11,32 +19,31 @@
 	letter-spacing: 0.05em;
 }
 
-.brand-title {
-	margin: var(--space-1) 0 0;
-	font-size: var(--text-xl);
-	line-height: 1.2;
-}
-
-.nav-stack {
-	display: grid;
-	gap: var(--space-2);
-}
-
-.sidebar-footer {
-	margin-top: var(--space-8);
-	padding: var(--space-4);
-}
-
 .meta-value {
 	margin: var(--space-1) 0 0;
 	font-size: var(--text-sm);
 }
 
-.topbar-actions {
-	display: flex;
+/* ─── Navigation ─────────────────────────────────────── */
+.nav-stack {
+	display: grid;
 	gap: var(--space-2);
 }
 
+/* ─── Sidebar ────────────────────────────────────────── */
+.sidebar-footer {
+	margin-top: auto; /* pushes footer to bottom if sidebar is flex/grid */
+	padding: var(--space-4);
+}
+
+/* ─── Topbar ─────────────────────────────────────────── */
+.topbar-actions {
+	display: flex;
+	gap: var(--space-2);
+	align-items: center; /* prevents misalignment if children vary in height */
+}
+
+/* ─── Stats ──────────────────────────────────────────── */
 .stats-row {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -44,6 +51,7 @@
 	margin-bottom: var(--space-6);
 }
 
+/* ─── Cards ──────────────────────────────────────────── */
 .metric-card {
 	padding: var(--space-4);
 }
@@ -51,8 +59,8 @@
 .metric-value {
 	margin: var(--space-2) 0 0;
 	font-size: var(--text-2xl);
-	line-height: 1.1;
 	font-weight: 700;
+	line-height: 1.1;
 }
 
 .panel-card {
@@ -77,15 +85,13 @@
 	color: var(--color-muted);
 }
 
+/* ─── Responsive ─────────────────────────────────────── */
 @media (max-width: 1024px) {
 	.os-root {
 		grid-template-columns: 220px 1fr;
 	}
 
-	.stats-row {
-		grid-template-columns: 1fr;
-	}
-
+	.stats-row,
 	.grid.cols-2 {
 		grid-template-columns: 1fr;
 	}
@@ -96,7 +102,7 @@
 		grid-template-columns: 1fr;
 		grid-template-rows: auto auto 1fr;
 		height: auto;
-		min-height: 100vh;
+		min-height: 100dvh; /* dvh handles mobile browser chrome better than vh */
 	}
 
 	.os-sidebar {
@@ -119,4 +125,3 @@
 		margin-top: var(--space-4);
 	}
 }
-

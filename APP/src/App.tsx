@@ -70,7 +70,7 @@ export default function App() {
     return (
         <div className="os-root">
             <aside className="os-sidebar">
-                <div className="brand-block brand" onClick={() => setCtx(null)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter') setCtx(null) }}>
+                <div className="brand-block brand" onClick={() => setCtx(null)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCtx(null) } }}>
                     <p className="brand-title">{ctx.owner}/{ctx.repo}</p>
                 </div>
                 <nav className="nav-stack">

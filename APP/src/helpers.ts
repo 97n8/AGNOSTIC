@@ -61,7 +61,7 @@ export const NAV_ICONS: Record<NavPage, string> = {
     Registry: '⊞',
     Projects: '⊟',
     Playbooks: '▷',
-    Tools: '⚙',
+    Tools: '⛭',
     Settings: '⚙',
 }
 

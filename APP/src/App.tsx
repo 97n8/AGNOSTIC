@@ -7,6 +7,15 @@ import type { RepoCtx, RepoTier, DeploymentStatus, RegistryEntry } from './githu
 
 const NA = '—'
 
+function sanitizeSlug(raw: string): string {
+    return raw.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+}
+
+function workflowFileName(path: string): string {
+    const idx = path.lastIndexOf('/')
+    return idx >= 0 ? path.slice(idx + 1) : path
+}
+
 function relativeTime(iso: string): string {
     const diff = Date.now() - new Date(iso).getTime()
     const mins = Math.floor(diff / 60_000)
@@ -488,7 +497,7 @@ function CreateModal({ ctx, onClose, toast, onCreated, workflows, activeBranch }
                                 ? <select name="workflow" className="picker-select" required>
                                     <option value="">Select workflow…</option>
                                     {workflows.map(w => (
-                                        <option key={w.id} value={w.path.replace('.github/workflows/', '')}>{w.name}</option>
+                                        <option key={w.id} value={workflowFileName(w.path)}>{w.name}</option>
                                     ))}
                                 </select>
                                 : <input name="workflow" className="form-input" placeholder="Workflow file (e.g. app-build.yml)" required autoFocus />
@@ -502,7 +511,7 @@ function CreateModal({ ctx, onClose, toast, onCreated, workflows, activeBranch }
                         <form className="create-form" onSubmit={async (e: FormEvent<HTMLFormElement>) => {
                             e.preventDefault()
                             const fd = new FormData(e.currentTarget)
-                            const slug = (fd.get('slug') as string).trim().toLowerCase().replace(/[^a-z0-9-]/g, '-')
+                            const slug = sanitizeSlug(fd.get('slug') as string)
                             const desc = (fd.get('description') as string).trim()
                             if (!slug) return
                             setSubmitting(true)
@@ -793,7 +802,7 @@ export default function App() {
                                     ? <select name="workflow" className="picker-select" required>
                                         <option value="">Select workflow…</option>
                                         {live.workflows.map(w => (
-                                            <option key={w.id} value={w.path.replace('.github/workflows/', '')}>{w.name}</option>
+                                            <option key={w.id} value={workflowFileName(w.path)}>{w.name}</option>
                                         ))}
                                     </select>
                                     : <input name="workflow" className="form-input" placeholder="Workflow file (e.g. app-build.yml)" required autoFocus />
@@ -1047,7 +1056,7 @@ export default function App() {
                                 if (!ctx) return
                                 if (!gh.hasToken()) { toast('Set a GitHub token in Settings to perform actions', 'error'); return }
                                 const fd = new FormData(e.currentTarget as HTMLFormElement)
-                                const slug = (fd.get('slug') as string).trim().toLowerCase().replace(/[^a-z0-9-]/g, '-')
+                                const slug = sanitizeSlug(fd.get('slug') as string)
                                 const desc = (fd.get('description') as string).trim()
                                 if (!slug) return
                                 try {
@@ -1062,7 +1071,7 @@ export default function App() {
                                 <button className="button primary" type="submit">Create Environment</button>
                             </form>
                         )}
-                        {envBranches.length === 0 && !envFormOpen
+                        {envBranches.length === 0
                             ? <EmptyState text="No environments" loading={live.loading} />
                             : <div className="item-list">
                                 {envBranches.map(b => (

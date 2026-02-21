@@ -55,6 +55,17 @@ export interface GHUser {
   total_private_repos?: number
 }
 
+export type RepoTier = 'CORE' | 'PILOT' | 'DRAFT' | 'ARCHIVED' | 'EXPERIMENTAL'
+export type DeploymentStatus = 'PRODUCTION' | 'STAGING' | 'LOCAL' | 'NONE'
+
+export interface RepoStatusMeta {
+  tier: RepoTier
+  deploymentStatus: DeploymentStatus
+  lastDeployAt: string | null
+  openPRCount: number
+  openIssueCount: number
+}
+
 export interface Repo {
   id: number
   name: string
@@ -69,10 +80,44 @@ export interface Repo {
   updated_at: string
   private: boolean
   fork: boolean
+  archived?: boolean
   language: string | null
   topics: string[]
   visibility: string
   owner: { login: string; avatar_url: string }
+}
+
+/** Derive governance metadata from repo data heuristically. */
+const CORE_MIN_STARS = 5
+const CORE_MIN_FORKS = 2
+const MAX_DEPLOY_AGE_DAYS = 90
+
+export function inferRepoStatus(r: Repo): RepoStatusMeta {
+  const topicsLower = r.topics.map(t => t.toLowerCase())
+
+  let tier: RepoTier = 'DRAFT'
+  if (r.archived || topicsLower.includes('archived')) tier = 'ARCHIVED'
+  else if (topicsLower.includes('core') || topicsLower.includes('production')) tier = 'CORE'
+  else if (topicsLower.includes('pilot') || topicsLower.includes('beta')) tier = 'PILOT'
+  else if (topicsLower.includes('experimental') || topicsLower.includes('spike')) tier = 'EXPERIMENTAL'
+  else if (r.stargazers_count >= CORE_MIN_STARS || r.forks_count >= CORE_MIN_FORKS) tier = 'CORE'
+
+  let deploymentStatus: DeploymentStatus = 'NONE'
+  if (topicsLower.includes('production') || topicsLower.includes('deployed')) deploymentStatus = 'PRODUCTION'
+  else if (topicsLower.includes('staging') || topicsLower.includes('preview')) deploymentStatus = 'STAGING'
+  else if (topicsLower.includes('local') || topicsLower.includes('dev')) deploymentStatus = 'LOCAL'
+  else if (tier === 'CORE') deploymentStatus = 'PRODUCTION'
+
+  const daysSincePush = (Date.now() - new Date(r.pushed_at).getTime()) / 86_400_000
+  const lastDeployAt = deploymentStatus !== 'NONE' && daysSincePush < MAX_DEPLOY_AGE_DAYS ? r.pushed_at : null
+
+  return {
+    tier,
+    deploymentStatus,
+    lastDeployAt,
+    openPRCount: 0,
+    openIssueCount: r.open_issues_count,
+  }
 }
 
 export interface Label {

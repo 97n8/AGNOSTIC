@@ -110,21 +110,21 @@ export default function App() {
                 <div className="page-content">
                 {live.error && <div className="error-banner">Connection issue: {live.error}</div>}
 
-                {page === 'Dashboard' && <DashboardPage repo={live.repo} openIssueCount={openIssues.length} openPRCount={openPRs.length} />}
+                {page === 'Dashboard' && <DashboardPage repo={live.repo} openIssueCount={openIssues.length} openPRCount={openPRs.length} ctx={ctx} />}
                 {page === 'Today' && <TodayPage repo={live.repo} openIssueCount={openIssues.length} openPRCount={openPRs.length} branches={live.branches} runs={live.runs} />}
-                {page === 'Issues' && <IssuesPage issues={filteredIssues} loading={live.loading} filter={issueFilter} onFilterChange={setIssueFilter} />}
-                {page === 'PRs' && <PRsPage prs={live.prs} loading={live.loading} />}
-                {page === 'Lists' && <ListsPage loading={live.loading} />}
+                {page === 'Issues' && <IssuesPage issues={filteredIssues} loading={live.loading} filter={issueFilter} onFilterChange={setIssueFilter} ctx={ctx} />}
+                {page === 'PRs' && <PRsPage prs={live.prs} loading={live.loading} ctx={ctx} />}
+                {page === 'Lists' && <ListsPage loading={live.loading} ctx={ctx} />}
                 {page === 'CI' && <CIPage runs={live.runs} loading={live.loading} workflows={live.workflows} ctx={ctx} activeBranch={activeBranch} toast={toast} />}
-                {page === 'Pipeline' && <PipelinePage runs={live.runs} loading={live.loading} />}
-                {page === 'Branches' && <BranchesPage branches={live.branches} loading={live.loading} repo={live.repo} />}
-                {page === 'Labels' && <LabelsPage labels={live.labels} loading={live.loading} />}
+                {page === 'Pipeline' && <PipelinePage runs={live.runs} loading={live.loading} ctx={ctx} />}
+                {page === 'Branches' && <BranchesPage branches={live.branches} loading={live.loading} repo={live.repo} ctx={ctx} />}
+                {page === 'Labels' && <LabelsPage labels={live.labels} loading={live.loading} ctx={ctx} />}
                 {page === 'Files' && <FilesPage dirEntries={dirEntries} filePath={filePath} setFilePath={setFilePath} ctx={ctx} activeBranch={activeBranch} toast={toast} />}
                 {page === 'Registry' && <RegistryPage ctx={ctx} loading={live.loading} toast={toast} />}
-                {page === 'Projects' && <ProjectsPage loading={live.loading} />}
-                {page === 'Playbooks' && <PlaybooksPage loading={live.loading} />}
-                {page === 'Tools' && <ToolsPage loading={live.loading} />}
-                {page === 'Cases' && <CasesPage cases={cases} loading={live.loading} />}
+                {page === 'Projects' && <ProjectsPage loading={live.loading} ctx={ctx} />}
+                {page === 'Playbooks' && <PlaybooksPage loading={live.loading} ctx={ctx} />}
+                {page === 'Tools' && <ToolsPage loading={live.loading} ctx={ctx} />}
+                {page === 'Cases' && <CasesPage cases={cases} loading={live.loading} ctx={ctx} />}
                 {page === 'Vault' && <VaultPage variables={live.variables} loading={live.loading} ctx={ctx} toast={toast} refresh={live.refresh} />}
                 {page === 'Environments' && <EnvironmentsPage envBranches={envBranches} loading={live.loading} ctx={ctx} activeBranch={activeBranch} toast={toast} />}
                 {page === 'Settings' && <SettingsPage user={user} onSwitchRepo={() => setCtx(null)} />}

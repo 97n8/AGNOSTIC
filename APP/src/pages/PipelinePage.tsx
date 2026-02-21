@@ -1,11 +1,16 @@
 import { EmptyState } from '../components/shared'
-import type { WorkflowRun } from '../github'
-import { relativeTime } from '../helpers'
+import type { WorkflowRun, RepoCtx } from '../github'
+import { relativeTime, ghUrl } from '../helpers'
 
-export default function PipelinePage({ runs, loading }: { runs: WorkflowRun[]; loading: boolean }) {
+export default function PipelinePage({ runs, loading, ctx }: { runs: WorkflowRun[]; loading: boolean; ctx: RepoCtx }) {
     return (
         <section className="page-pipeline">
-            <div className="page-header"><h2>Pipeline</h2></div>
+            <div className="page-header">
+                <h2>Pipeline</h2>
+                <div className="page-actions">
+                    <a className="button" href={ghUrl(ctx, '/actions')} target="_blank" rel="noopener noreferrer">View Actions</a>
+                </div>
+            </div>
             {runs.length === 0
                 ? <EmptyState text="No pipeline activity" loading={loading} />
                 : <div className="pipeline-stages">

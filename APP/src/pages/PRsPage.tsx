@@ -1,10 +1,16 @@
 import { EmptyState } from '../components/shared'
-import type { PR } from '../github'
-import { relativeTime } from '../helpers'
+import type { PR, RepoCtx } from '../github'
+import { relativeTime, ghUrl } from '../helpers'
 
-export default function PRsPage({ prs, loading }: { prs: PR[]; loading: boolean }) {
+export default function PRsPage({ prs, loading, ctx }: { prs: PR[]; loading: boolean; ctx: RepoCtx }) {
     return (
         <section className="page-prs">
+            <div className="page-header">
+                <h2>Pull Requests</h2>
+                <div className="page-actions">
+                    <a className="button primary" href={ghUrl(ctx, '/compare')} target="_blank" rel="noopener noreferrer">New PR</a>
+                </div>
+            </div>
             {prs.length === 0
                 ? <EmptyState text="No open PRs" loading={loading} />
                 : <div className="item-list">

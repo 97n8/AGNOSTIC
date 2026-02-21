@@ -228,7 +228,7 @@ describe('Shell after repo selection', () => {
 
   it('shows repo name in brand area', async () => {
     await renderAndPick()
-    expect(screen.getByText('testuser/TestRepo')).toBeInTheDocument()
+    expect(screen.getAllByText('testuser/TestRepo').length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows the + create button', async () => {

@@ -65,6 +65,10 @@ export const NAV_ICONS: Record<NavPage, string> = {
     Settings: '⚙',
 }
 
+export function ghUrl(ctx: { owner: string; repo: string }, path = ''): string {
+    return `https://github.com/${ctx.owner}/${ctx.repo}${path}`
+}
+
 export function textColorForBg(hex: string): string {
     const r = parseInt(hex.slice(0, 2), 16)
     const g = parseInt(hex.slice(2, 4), 16)

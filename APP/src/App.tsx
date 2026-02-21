@@ -372,6 +372,7 @@ function CreateModal({ ctx, onClose, toast, onCreated }: {
 }) {
     const [active, setActive] = useState<string | null>(null)
     const [submitting, setSubmitting] = useState(false)
+    const [labelColor, setLabelColor] = useState('0075ca')
     const options = ['Issue', 'Pull Request', 'Branch', 'Label', 'File', 'Environment', 'Variable', 'Workflow', 'Repository']
 
     async function handleIssue(e: FormEvent<HTMLFormElement>) {
@@ -383,7 +384,8 @@ function CreateModal({ ctx, onClose, toast, onCreated }: {
         try {
             await gh.createIssue(ctx, title, (fd.get('body') as string).trim() || undefined)
             toast('Issue created', 'success')
-            onCreated(); onClose()
+            onCreated()
+            onClose()
         } catch (err) { toast(`Failed: ${err instanceof Error ? err.message : 'unknown'}`, 'error') }
         setSubmitting(false)
     }
@@ -398,7 +400,8 @@ function CreateModal({ ctx, onClose, toast, onCreated }: {
         try {
             await gh.createLabel(ctx, name, color, (fd.get('description') as string).trim() || undefined)
             toast('Label created', 'success')
-            onCreated(); onClose()
+            onCreated()
+            onClose()
         } catch (err) { toast(`Failed: ${err instanceof Error ? err.message : 'unknown'}`, 'error') }
         setSubmitting(false)
     }
@@ -413,7 +416,8 @@ function CreateModal({ ctx, onClose, toast, onCreated }: {
         try {
             await gh.setVariable(ctx, name, value)
             toast('Variable saved', 'success')
-            onCreated(); onClose()
+            onCreated()
+            onClose()
         } catch (err) { toast(`Failed: ${err instanceof Error ? err.message : 'unknown'}`, 'error') }
         setSubmitting(false)
     }
@@ -444,8 +448,8 @@ function CreateModal({ ctx, onClose, toast, onCreated }: {
                         <form className="create-form" onSubmit={handleLabel}>
                             <input name="name" className="form-input" placeholder="Label name" required autoFocus />
                             <div className="create-color-row">
-                                <input name="color" className="form-input" placeholder="Color hex (e.g. d73a4a)" defaultValue="0075ca" />
-                                <span className="create-color-preview" style={{ background: '#0075ca' }} />
+                                <input name="color" className="form-input" placeholder="Color hex (e.g. d73a4a)" value={labelColor} onChange={e => setLabelColor(e.target.value.replace('#', ''))} />
+                                <span className="create-color-preview" style={{ background: `#${labelColor}` }} />
                             </div>
                             <input name="description" className="form-input" placeholder="Description (optional)" />
                             <button className="button primary" type="submit" disabled={submitting}>{submitting ? 'Creating…' : 'Create Label'}</button>

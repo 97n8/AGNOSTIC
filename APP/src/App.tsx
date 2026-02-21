@@ -358,8 +358,7 @@ export default function App() {
     if (!ctx) {
         return (
             <div>
-                {user && <p className="picker-sub">Signed in as {user.name ?? user.login}</p>}
-                <RepoPicker onSelect={c => { setCtx(c); setPage('Dashboard') }} user={null} />
+                <RepoPicker onSelect={c => { setCtx(c); setPage('Dashboard') }} user={user} />
             </div>
         )
     }

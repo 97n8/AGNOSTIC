@@ -116,7 +116,7 @@ describe('Repo picker (with token)', () => {
     render(<App />)
     await waitFor(() => {
       expect(screen.getByText(/Signed in as/)).toBeInTheDocument()
-      expect(screen.getByText(/testuser/)).toBeInTheDocument()
+      expect(screen.getByText(/testuser/, { selector: 'strong' })).toBeInTheDocument()
     })
   })
 

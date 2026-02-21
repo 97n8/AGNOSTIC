@@ -1,60 +1,78 @@
-/* ── GitHub API client with token auth ──────────────────────── */
+/* ── GitHub API client · RepoCtx pattern ────────────────────── */
 
-const REPO = '97n8/LogicCommons'
-const BASE = `https://api.github.com/repos/${REPO}`
+const TOKEN_KEY = 'lc_gh_token'
+const API = 'https://api.github.com'
+const VER = '2022-11-28'
 
-const TOKEN_KEY = 'lc_github_token'
+/* ── Token helpers ─────────────────────────────────────────── */
 
-export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY)
-}
+export function getToken(): string | null { return localStorage.getItem(TOKEN_KEY) }
+export function setToken(t: string): void { localStorage.setItem(TOKEN_KEY, t) }
+export function clearToken(): void { localStorage.removeItem(TOKEN_KEY) }
+export function hasToken(): boolean { return !!getToken() }
 
-export function setToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token)
-}
+/* ── Core fetch ────────────────────────────────────────────── */
 
-export function clearToken(): void {
-  localStorage.removeItem(TOKEN_KEY)
-}
-
-export function hasToken(): boolean {
-  return !!getToken()
-}
-
-function headers(write = false): HeadersInit {
+function hdrs(write = false): HeadersInit {
   const h: Record<string, string> = {
     Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': VER,
   }
-  const token = getToken()
-  if (token) h.Authorization = `Bearer ${token}`
+  const t = getToken()
+  if (t) h.Authorization = `Bearer ${t}`
   if (write) h['Content-Type'] = 'application/json'
   return h
 }
 
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+async function api<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
     ...init,
-    headers: { ...headers(!!init?.body), ...(init?.headers as Record<string, string> ?? {}) },
+    headers: { ...hdrs(!!init?.body), ...(init?.headers as Record<string, string> ?? {}) },
   })
   if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`GitHub ${res.status}: ${body.slice(0, 200)}`)
+    let msg = `GitHub ${res.status}`
+    try { const j = await res.json(); msg += `: ${j.message ?? JSON.stringify(j)}` } catch { /* empty */ }
+    throw new Error(msg)
   }
   if (res.status === 204) return null as T
   return res.json()
 }
 
+function repoUrl(ctx: RepoCtx, path = ''): string {
+  return `${API}/repos/${ctx.owner}/${ctx.repo}${path}`
+}
+
 /* ── Types ─────────────────────────────────────────────────── */
 
+export interface RepoCtx { owner: string; repo: string }
+
+export interface GHUser {
+  login: string
+  avatar_url: string
+  name: string | null
+  bio: string | null
+  public_repos: number
+  total_private_repos?: number
+}
+
 export interface Repo {
-  open_issues_count: number
-  stargazers_count: number
-  forks_count: number
-  default_branch: string
-  pushed_at: string
+  id: number
+  name: string
   full_name: string
   description: string | null
   html_url: string
+  stargazers_count: number
+  forks_count: number
+  open_issues_count: number
+  default_branch: string
+  pushed_at: string
+  updated_at: string
+  private: boolean
+  fork: boolean
+  language: string | null
+  topics: string[]
+  visibility: string
+  owner: { login: string; avatar_url: string }
 }
 
 export interface Label {
@@ -73,7 +91,7 @@ export interface Issue {
   created_at: string
   updated_at: string
   user: { login: string; avatar_url: string }
-  pull_request?: { url: string }
+  pull_request?: unknown
   comments: number
 }
 
@@ -110,12 +128,12 @@ export interface Branch {
   protected: boolean
 }
 
-export interface RepoFile {
+export interface FileEntry {
   name: string
   path: string
   sha: string
   size: number
-  type: 'file' | 'dir'
+  type: 'file' | 'dir' | 'symlink'
   html_url: string
   download_url: string | null
 }
@@ -125,44 +143,19 @@ export interface FileContent {
   path: string
   sha: string
   size: number
-  content: string   // base64
+  content: string
   encoding: string
   html_url: string
 }
 
-export interface CommitResult {
-  content: { sha: string; path: string; html_url: string }
-  commit: { sha: string; message: string; html_url: string }
+export interface Variable {
+  name: string
+  value: string
+  created_at: string
+  updated_at: string
 }
 
-/* ── Read operations ───────────────────────────────────────── */
-
-export const fetchRepo = () => api<Repo>('')
-
-export const fetchIssues = (state: 'open' | 'closed' | 'all' = 'open', perPage = 20) =>
-  api<Issue[]>(`/issues?state=${state}&per_page=${perPage}&sort=updated`)
-    .then(items => items.filter(i => !i.pull_request))
-
-export const fetchPRs = (state: 'open' | 'closed' | 'all' = 'open', perPage = 20) =>
-  api<PR[]>(`/pulls?state=${state}&per_page=${perPage}&sort=updated`)
-
-export const fetchWorkflowRuns = (perPage = 10) =>
-  api<{ workflow_runs: WorkflowRun[] }>(`/actions/runs?per_page=${perPage}`)
-    .then(r => r.workflow_runs)
-
-export const fetchBranches = (perPage = 30) =>
-  api<Branch[]>(`/branches?per_page=${perPage}`)
-
-export const fetchLabels = () =>
-  api<Label[]>(`/labels?per_page=50`)
-
-/* ── File / content operations ─────────────────────────────── */
-
-export const fetchDirContents = (path: string, ref?: string) =>
-  api<RepoFile[]>(`/contents/${encodeURIComponent(path)}${ref ? `?ref=${ref}` : ''}`)
-
-export const fetchFileContent = (path: string, ref?: string) =>
-  api<FileContent>(`/contents/${encodeURIComponent(path)}${ref ? `?ref=${ref}` : ''}`)
+/* ── Content helpers ───────────────────────────────────────── */
 
 export function decodeContent(base64: string): string {
   return decodeURIComponent(
@@ -180,133 +173,185 @@ export function encodeContent(text: string): string {
   )
 }
 
-/** Create or update a file in the repo (commits directly) */
+/* ── User-scoped endpoints ─────────────────────────────────── */
+
+export const fetchUser = () => api<GHUser>(`${API}/user`)
+
+export const fetchUserRepos = (perPage = 100) =>
+  api<Repo[]>(`${API}/user/repos?per_page=${perPage}&sort=updated&affiliation=owner,collaborator,organization_member`)
+
+export const createRepo = (name: string, description?: string, isPrivate = true) =>
+  api<Repo>(`${API}/user/repos`, {
+    method: 'POST',
+    body: JSON.stringify({ name, description, private: isPrivate, auto_init: true }),
+  })
+
+/* ── Repo read operations ──────────────────────────────────── */
+
+export const fetchRepo = (ctx: RepoCtx) => api<Repo>(repoUrl(ctx))
+
+export const fetchIssues = (ctx: RepoCtx, state: 'open' | 'closed' | 'all' = 'open', perPage = 30) =>
+  api<Issue[]>(repoUrl(ctx, `/issues?state=${state}&per_page=${perPage}&sort=updated`))
+
+export const fetchPRs = (ctx: RepoCtx, state: 'open' | 'closed' | 'all' = 'open', perPage = 30) =>
+  api<PR[]>(repoUrl(ctx, `/pulls?state=${state}&per_page=${perPage}&sort=updated`))
+
+export const fetchWorkflowRuns = (ctx: RepoCtx, perPage = 15) =>
+  api<{ workflow_runs: WorkflowRun[] }>(repoUrl(ctx, `/actions/runs?per_page=${perPage}`))
+    .then(r => r.workflow_runs)
+
+export const fetchBranches = (ctx: RepoCtx, perPage = 50) =>
+  api<Branch[]>(repoUrl(ctx, `/branches?per_page=${perPage}`))
+
+export const fetchLabels = (ctx: RepoCtx, perPage = 100) =>
+  api<Label[]>(repoUrl(ctx, `/labels?per_page=${perPage}`))
+
+/* ── File / content operations ─────────────────────────────── */
+
+export const fetchDirContents = (ctx: RepoCtx, path: string, ref?: string) =>
+  api<FileEntry[]>(repoUrl(ctx, `/contents/${encodeURIComponent(path)}${ref ? `?ref=${ref}` : ''}`))
+
+export const fetchFileContent = (ctx: RepoCtx, path: string, ref?: string) =>
+  api<FileContent>(repoUrl(ctx, `/contents/${encodeURIComponent(path)}${ref ? `?ref=${ref}` : ''}`))
+
+/** Create or update a file. `content` must already be base64-encoded. */
 export const putFile = (
+  ctx: RepoCtx,
   path: string,
   content: string,
   message: string,
-  sha?: string,         // required for updates, omit for create
   branch?: string,
+  sha?: string,
 ) =>
-  api<CommitResult>(`/contents/${encodeURIComponent(path)}`, {
+  api<{ content: FileEntry }>(repoUrl(ctx, `/contents/${encodeURIComponent(path)}`), {
     method: 'PUT',
     body: JSON.stringify({
       message,
-      content: encodeContent(content),
+      content,
       ...(sha ? { sha } : {}),
       ...(branch ? { branch } : {}),
     }),
   })
 
-export const deleteFile = (path: string, sha: string, message: string, branch?: string) =>
-  api<CommitResult>(`/contents/${encodeURIComponent(path)}`, {
+export const deleteFile = (ctx: RepoCtx, path: string, sha: string, message: string, branch?: string) =>
+  api<void>(repoUrl(ctx, `/contents/${encodeURIComponent(path)}`), {
     method: 'DELETE',
-    body: JSON.stringify({
-      message,
-      sha,
-      ...(branch ? { branch } : {}),
-    }),
+    body: JSON.stringify({ message, sha, ...(branch ? { branch } : {}) }),
   })
 
-/* ── Write operations (require token) ──────────────────────── */
+/* ── Issue / PR write operations ───────────────────────────── */
 
-export const createIssue = (title: string, body?: string, labels?: string[]) =>
-  api<Issue>('/issues', {
+export const createIssue = (ctx: RepoCtx, title: string, body?: string, labels?: string[]) =>
+  api<Issue>(repoUrl(ctx, '/issues'), {
     method: 'POST',
     body: JSON.stringify({ title, body, labels }),
   })
 
-export const updateIssue = (number: number, update: { title?: string; body?: string; state?: string; labels?: string[] }) =>
-  api<Issue>(`/issues/${number}`, {
+export const updateIssue = (ctx: RepoCtx, number: number, update: { title?: string; body?: string; state?: string; labels?: string[] }) =>
+  api<Issue>(repoUrl(ctx, `/issues/${number}`), {
     method: 'PATCH',
     body: JSON.stringify(update),
   })
 
-export const closeIssue = (number: number) =>
-  api<Issue>(`/issues/${number}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ state: 'closed' }),
-  })
+export const closeIssue = (ctx: RepoCtx, number: number) =>
+  updateIssue(ctx, number, { state: 'closed' })
 
-export const reopenIssue = (number: number) =>
-  api<Issue>(`/issues/${number}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ state: 'open' }),
-  })
-
-export const addLabel = (issueNumber: number, labels: string[]) =>
-  api<Label[]>(`/issues/${issueNumber}/labels`, {
-    method: 'POST',
-    body: JSON.stringify({ labels }),
-  })
-
-export const removeLabel = (issueNumber: number, label: string) =>
-  api<void>(`/issues/${issueNumber}/labels/${encodeURIComponent(label)}`, {
-    method: 'DELETE',
-  })
-
-export const createLabel = (name: string, color: string, description?: string) =>
-  api<Label>('/labels', {
-    method: 'POST',
-    body: JSON.stringify({ name, color, description }),
-  })
-
-export const commentOnIssue = (number: number, body: string) =>
-  api<{ id: number }>(`/issues/${number}/comments`, {
+export const commentOnIssue = (ctx: RepoCtx, number: number, body: string) =>
+  api<{ id: number }>(repoUrl(ctx, `/issues/${number}/comments`), {
     method: 'POST',
     body: JSON.stringify({ body }),
   })
 
-export const mergePR = (number: number, method: 'merge' | 'squash' | 'rebase' = 'merge') =>
-  api<{ merged: boolean }>(`/pulls/${number}/merge`, {
+export const addLabel = (ctx: RepoCtx, issueNumber: number, labels: string[]) =>
+  api<Label[]>(repoUrl(ctx, `/issues/${issueNumber}/labels`), {
+    method: 'POST',
+    body: JSON.stringify({ labels }),
+  })
+
+export const removeLabel = (ctx: RepoCtx, issueNumber: number, label: string) =>
+  api<void>(repoUrl(ctx, `/issues/${issueNumber}/labels/${encodeURIComponent(label)}`), {
+    method: 'DELETE',
+  })
+
+export const createLabel = (ctx: RepoCtx, name: string, color: string, description?: string) =>
+  api<Label>(repoUrl(ctx, '/labels'), {
+    method: 'POST',
+    body: JSON.stringify({ name, color, description }),
+  })
+
+export const mergePR = (ctx: RepoCtx, number: number, method: 'merge' | 'squash' | 'rebase' = 'merge') =>
+  api<void>(repoUrl(ctx, `/pulls/${number}/merge`), {
     method: 'PUT',
     body: JSON.stringify({ merge_method: method }),
   })
 
-export const triggerWorkflow = (workflowId: string, ref = 'main') =>
-  api<void>(`/actions/workflows/${workflowId}/dispatches`, {
+export const createPR = (ctx: RepoCtx, title: string, head: string, base: string, body?: string, draft = false) =>
+  api<PR>(repoUrl(ctx, '/pulls'), {
+    method: 'POST',
+    body: JSON.stringify({ title, head, base, body, draft }),
+  })
+
+/* ── Branch operations ─────────────────────────────────────── */
+
+export const createBranch = (ctx: RepoCtx, name: string, sha: string) =>
+  api<{ ref: string }>(repoUrl(ctx, '/git/refs'), {
+    method: 'POST',
+    body: JSON.stringify({ ref: `refs/heads/${name}`, sha }),
+  })
+
+export const deleteBranch = (ctx: RepoCtx, name: string) =>
+  api<void>(repoUrl(ctx, `/git/refs/heads/${encodeURIComponent(name)}`), {
+    method: 'DELETE',
+  })
+
+/* ── Workflow operations ───────────────────────────────────── */
+
+export const triggerWorkflow = (ctx: RepoCtx, workflowId: string, ref = 'main') =>
+  api<void>(repoUrl(ctx, `/actions/workflows/${workflowId}/dispatches`), {
     method: 'POST',
     body: JSON.stringify({ ref }),
   })
 
-export const createBranch = (name: string, sha: string) =>
-  fetch(`https://api.github.com/repos/${REPO}/git/refs`, {
-    method: 'POST',
-    headers: headers(true),
-    body: JSON.stringify({ ref: `refs/heads/${name}`, sha }),
-  }).then(r => {
-    if (!r.ok) throw new Error(`Failed to create branch: ${r.status}`)
-    return r.json()
+/* ── Vault (repo variables) ───────────────────────────────── */
+
+export const fetchVariables = (ctx: RepoCtx) =>
+  api<{ variables: Variable[] }>(repoUrl(ctx, '/actions/variables?per_page=30'))
+    .then(r => r.variables)
+    .catch(() => [] as Variable[])
+
+export const setVariable = (ctx: RepoCtx, name: string, value: string) =>
+  api<void>(repoUrl(ctx, `/actions/variables/${name}`), {
+    method: 'PATCH',
+    body: JSON.stringify({ name, value }),
+  }).catch(async (err: Error) => {
+    if (err.message.includes('404')) {
+      await api<void>(repoUrl(ctx, '/actions/variables'), {
+        method: 'POST',
+        body: JSON.stringify({ name, value }),
+      })
+    } else throw err
   })
 
-export const deleteBranch = (name: string) =>
-  fetch(`https://api.github.com/repos/${REPO}/git/refs/heads/${encodeURIComponent(name)}`, {
-    method: 'DELETE',
-    headers: headers(),
-  }).then(r => {
-    if (!r.ok) throw new Error(`Failed to delete branch: ${r.status}`)
-  })
-
-export const createPR = (title: string, head: string, base: string, body?: string) =>
-  api<PR>('/pulls', {
-    method: 'POST',
-    body: JSON.stringify({ title, head, base, body }),
-  })
+export const deleteVariable = (ctx: RepoCtx, name: string) =>
+  api<void>(repoUrl(ctx, `/actions/variables/${name}`), { method: 'DELETE' })
 
 /* ── Environment scaffolding ───────────────────────────────── */
 
-/** Creates a full environment from a case: branch + scaffold files + issue update */
-export async function createEnvironment(caseName: string, issueNumber: number): Promise<{ branch: string; files: string[] }> {
-  const slug = caseName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+/** Provisions a branch `env/{slug}` with scaffold files. Returns info for the caller to attach to an issue. */
+export async function createEnvironment(
+  ctx: RepoCtx,
+  slug: string,
+  description: string,
+  defaultBranch: string,
+): Promise<{ branch: string; files: string[]; issueComment: string }> {
   const branchName = `env/${slug}`
 
-  // Get main SHA
-  const branches = await fetchBranches()
-  const main = branches.find(b => b.name === 'main')
-  if (!main) throw new Error('Cannot find main branch')
+  // Get default-branch SHA
+  const branches = await fetchBranches(ctx)
+  const base = branches.find(b => b.name === defaultBranch)
+  if (!base) throw new Error(`Cannot find branch "${defaultBranch}"`)
 
-  // Create branch
-  await createBranch(branchName, main.commit.sha)
+  await createBranch(ctx, branchName, base.commit.sha)
 
   // Scaffold files
   const files = [
@@ -315,54 +360,21 @@ export async function createEnvironment(caseName: string, issueNumber: number): 
     `environments/${slug}/.env.example`,
   ]
 
-  const readmeContent = `# Environment: ${caseName}\n\nCreated from Case #${issueNumber}\nBranch: \`${branchName}\`\nDate: ${new Date().toISOString()}\n\n## Status\n\n- [ ] Environment provisioned\n- [ ] Configuration set\n- [ ] Ready for development\n`
-  const configContent = JSON.stringify({
-    name: slug,
-    case: issueNumber,
-    branch: branchName,
-    created: new Date().toISOString(),
-    status: 'provisioning',
-    vault: {},
-  }, null, 2)
-  const envExample = `# Environment: ${slug}\n# Copy to .env and fill in values\n\nENV_NAME=${slug}\nCASE_NUMBER=${issueNumber}\n`
+  const readme = encodeContent(
+    `# Environment: ${description}\n\nBranch: \`${branchName}\`\nDate: ${new Date().toISOString()}\n\n## Status\n\n- [ ] Environment provisioned\n- [ ] Configuration set\n- [ ] Ready for development\n`
+  )
+  const config = encodeContent(
+    JSON.stringify({ name: slug, branch: branchName, created: new Date().toISOString(), status: 'provisioning', vault: {} }, null, 2)
+  )
+  const envExample = encodeContent(
+    `# Environment: ${slug}\n# Copy to .env and fill in values\n\nENV_NAME=${slug}\n`
+  )
 
-  await putFile(files[0], readmeContent, `env(${slug}): scaffold environment from case #${issueNumber}`, undefined, branchName)
-  await putFile(files[1], configContent, `env(${slug}): add config`, undefined, branchName)
-  await putFile(files[2], envExample, `env(${slug}): add .env.example`, undefined, branchName)
+  await putFile(ctx, files[0], readme, `env(${slug}): scaffold environment`, branchName)
+  await putFile(ctx, files[1], config, `env(${slug}): add config`, branchName)
+  await putFile(ctx, files[2], envExample, `env(${slug}): add .env.example`, branchName)
 
-  // Update the issue with environment info
-  await commentOnIssue(issueNumber, `🏗️ **Environment created**\n\n- Branch: \`${branchName}\`\n- Config: \`environments/${slug}/config.json\`\n- Status: provisioning\n\nScaffolded automatically by LogicCommons OS.`)
+  const issueComment = `🏗️ **Environment created**\n\n- Branch: \`${branchName}\`\n- Config: \`environments/${slug}/config.json\`\n- Status: provisioning\n\nScaffolded automatically by LogicCommons OS.`
 
-  return { branch: branchName, files }
+  return { branch: branchName, files, issueComment }
 }
-
-/* ── Vault operations (repo-level variables via API) ──────── */
-
-export interface RepoVariable {
-  name: string
-  value: string
-  created_at: string
-  updated_at: string
-}
-
-export const fetchVariables = () =>
-  api<{ variables: RepoVariable[] }>(`/actions/variables?per_page=30`)
-    .then(r => r.variables)
-    .catch(() => [] as RepoVariable[])
-
-export const setVariable = (name: string, value: string) =>
-  // try update first, create if 404
-  api<void>(`/actions/variables/${name}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ name, value }),
-  }).catch(async (err: Error) => {
-    if (err.message.includes('404')) {
-      await api<void>('/actions/variables', {
-        method: 'POST',
-        body: JSON.stringify({ name, value }),
-      })
-    } else throw err
-  })
-
-export const deleteVariable = (name: string) =>
-  api<void>(`/actions/variables/${name}`, { method: 'DELETE' })

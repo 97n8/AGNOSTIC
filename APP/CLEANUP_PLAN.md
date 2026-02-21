@@ -47,6 +47,9 @@ Delete in this order, validating after each batch:
 3. Legacy folder `PublicLogic OS Component Library (4)/`.
 4. Extra lockfiles/build artifacts not used by final app.
 
+## Migration helper note
+- `scripts/merge-legacy-deps.js` — helper that merges missing deps/devDeps/scripts from `APP/legacy-root-package.json` to `APP/package.json`; run from repo root on branch `cleanup/migrate-root-app`.
+
 ## Validation gates (required before each delete batch)
 - `npm --prefix APP ci`
 - `npm --prefix APP run build`

@@ -171,6 +171,7 @@
 	margin-bottom: var(--space-6);
 }
 
+/* ─── Cards ──────────────────────────────────────────── */
 .metric-card {
 	display: flex;
 	flex-direction: column;
@@ -674,7 +675,7 @@
 		grid-template-columns: 1fr;
 		grid-template-rows: auto auto 1fr;
 		height: auto;
-		min-height: 100vh;
+		min-height: 100dvh; /* dvh handles mobile browser chrome better than vh */
 	}
 
 	.os-sidebar {
@@ -951,4 +952,3 @@
 	color: #f59e0b;
 	border-color: #f59e0b;
 }
-

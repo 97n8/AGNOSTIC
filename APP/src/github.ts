@@ -391,7 +391,7 @@ export interface RegistryEntry {
   templateName: string
   templateVersion: string
   deployTarget: DeployTarget
-  requiredSecrets: string[]
+  requiredConfig: string[]
   status: RegistryStatus
   upgradePath: string | null
   createdAt: string
@@ -532,7 +532,7 @@ export async function scaffoldRepository(
     templateName: template.name,
     templateVersion: template.version,
     deployTarget: template.deployTarget,
-    requiredSecrets: template.secrets,
+    requiredConfig: template.secrets,
     status: 'active',
     upgradePath: null,
     createdAt: new Date().toISOString(),
@@ -540,7 +540,7 @@ export async function scaffoldRepository(
 
   let deployCommands: string[]
   switch (template.deployTarget) {
-    case 'vercel': deployCommands = [`npx vercel --prod`]; break
+    case 'vercel': deployCommands = [`VERCEL_TOKEN=$VERCEL_TOKEN npx vercel --prod`]; break
     case 'docker': deployCommands = [`docker build -t ${name} .`, `docker run -p 3000:3000 ${name}`]; break
     default: deployCommands = [`# Deploy manually for target: ${template.deployTarget}`]
   }
@@ -583,7 +583,7 @@ export async function archiveRegistryEntry(ctx: RepoCtx, owner: string, repoName
 /** Compute deploy commands for a registry entry based on its deploy target. */
 export function deployCommandsForEntry(entry: RegistryEntry): string[] {
   switch (entry.deployTarget) {
-    case 'vercel': return [`npx vercel --prod`]
+    case 'vercel': return [`VERCEL_TOKEN=$VERCEL_TOKEN npx vercel --prod`]
     case 'docker': return [`docker build -t ${entry.repoName} .`, `docker run -p 3000:3000 ${entry.repoName}`]
     default: return [`# Deploy manually for target: ${entry.deployTarget}`]
   }

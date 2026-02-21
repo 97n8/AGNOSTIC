@@ -848,7 +848,7 @@ export default function App() {
                                 const rDesc = (fd.get('description') as string).trim()
                                 const rPrivate = fd.get('private') === 'on'
                                 if (!rName) return
-                                const existing = registry.find(en => en.repoName === rName)
+                                const existing = registry.find(en => en.repoName === rName && en.owner === ctx.owner)
                                 if (existing) { toast(`Unit "${rName}" already exists in the registry`, 'error'); return }
                                 setScaffolding(true)
                                 try {
@@ -884,7 +884,7 @@ export default function App() {
                                 </div>
                                 <div className="scaffold-section">
                                     <h4>Required Configuration</h4>
-                                    <ul>{lastScaffold.registryEntry.requiredSecrets.map(s => <li key={s}><code>{s}</code></li>)}</ul>
+                                    <ul>{lastScaffold.registryEntry.requiredConfig.map(s => <li key={s}><code>{s}</code></li>)}</ul>
                                 </div>
                                 <div className="scaffold-section">
                                     <h4>Deploy Commands</h4>
@@ -917,7 +917,7 @@ export default function App() {
                                     <dt>Owner</dt><dd>{inspectEntry.owner}</dd>
                                     <dt>Template</dt><dd>{inspectEntry.templateName}@{inspectEntry.templateVersion}</dd>
                                     <dt>Deployment context</dt><dd>{inspectEntry.deployTarget}</dd>
-                                    <dt>Configuration keys</dt><dd>{inspectEntry.requiredSecrets.join(', ') || 'None'}</dd>
+                                    <dt>Configuration keys</dt><dd>{inspectEntry.requiredConfig.join(', ') || 'None'}</dd>
                                     <dt>Status</dt><dd>{inspectEntry.status}</dd>
                                     <dt>Upgrade path</dt><dd>{inspectEntry.upgradePath ?? 'None'}</dd>
                                     <dt>Created</dt><dd>{inspectEntry.createdAt}</dd>
@@ -959,7 +959,7 @@ export default function App() {
                                                 <div>
                                                     <span className="tag">{entry.templateName}@{entry.templateVersion}</span>
                                                     <span className={`tag deploy-${entry.deployTarget}`}>{entry.deployTarget}</span>
-                                                    {entry.requiredSecrets.length > 0 && <span className="registry-secrets">Config: {entry.requiredSecrets.join(', ')}</span>}
+                                                    {entry.requiredConfig.length > 0 && <span className="registry-secrets">Config: {entry.requiredConfig.join(', ')}</span>}
                                                 </div>
                                             </div>
                                             <div className="registry-actions">

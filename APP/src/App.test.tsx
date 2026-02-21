@@ -649,7 +649,7 @@ describe('deployCommandsForEntry', () => {
     templateName: 'typescript-docker',
     templateVersion: '1.0.0',
     deployTarget: 'docker',
-    requiredSecrets: ['NODE_ENV', 'PORT'],
+    requiredConfig: ['NODE_ENV', 'PORT'],
     status: 'active',
     upgradePath: null,
     createdAt: new Date().toISOString(),
@@ -663,7 +663,7 @@ describe('deployCommandsForEntry', () => {
 
   it('returns vercel command for vercel target', () => {
     const cmds = deployCommandsForEntry({ ...baseEntry, deployTarget: 'vercel' })
-    expect(cmds).toContain('npx vercel --prod')
+    expect(cmds).toContain('VERCEL_TOKEN=$VERCEL_TOKEN npx vercel --prod')
   })
 
   it('returns manual fallback for custom target', () => {
@@ -679,7 +679,7 @@ describe('verifyStepsForEntry', () => {
     templateName: 'typescript-docker',
     templateVersion: '1.0.0',
     deployTarget: 'docker',
-    requiredSecrets: [],
+    requiredConfig: [],
     status: 'active',
     upgradePath: null,
     createdAt: new Date().toISOString(),

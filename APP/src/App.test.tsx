@@ -1,6 +1,7 @@
 import { render, screen, cleanup, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import App from './App'
+import { inferRepoStatus } from './github'
 
 afterEach(() => {
   cleanup()
@@ -147,6 +148,55 @@ describe('Repo picker (with token)', () => {
     fireEvent.click(screen.getByText('+ New Repo'))
     fireEvent.click(screen.getByText('✕ Cancel'))
     expect(screen.queryByPlaceholderText('Repository name')).not.toBeInTheDocument()
+  })
+
+  it('renders repo as card with status badges', async () => {
+    render(<App />)
+    await waitFor(() => screen.getByText('testuser/TestRepo'))
+    const card = document.querySelector('.repo-card')
+    expect(card).toBeInTheDocument()
+    expect(document.querySelector('.status-badge')).toBeInTheDocument()
+  })
+
+  it('shows filter controls (tier, deploy, sort)', async () => {
+    render(<App />)
+    await waitFor(() => screen.getByText('testuser/TestRepo'))
+    expect(screen.getByText('Tier')).toBeInTheDocument()
+    expect(screen.getByText('Deploy')).toBeInTheDocument()
+    expect(screen.getByText('Sort')).toBeInTheDocument()
+  })
+
+  it('shows repo description in card', async () => {
+    render(<App />)
+    await waitFor(() => {
+      expect(screen.getByText('A test repo')).toBeInTheDocument()
+    })
+  })
+
+  it('shows tier and deploy selects with options', async () => {
+    render(<App />)
+    await waitFor(() => screen.getByText('testuser/TestRepo'))
+    const selects = document.querySelectorAll('.picker-select')
+    expect(selects.length).toBe(3)
+  })
+
+  it('filters by tier', async () => {
+    render(<App />)
+    await waitFor(() => screen.getByText('testuser/TestRepo'))
+    // Default repo with 7 stars, 3 forks infers as CORE
+    const tierSelect = screen.getByDisplayValue('All tiers')
+    fireEvent.change(tierSelect, { target: { value: 'ARCHIVED' } })
+    expect(screen.queryByText('testuser/TestRepo')).not.toBeInTheDocument()
+    fireEvent.change(tierSelect, { target: { value: 'CORE' } })
+    await waitFor(() => {
+      expect(screen.getByText('testuser/TestRepo')).toBeInTheDocument()
+    })
+  })
+
+  it('sort select defaults to activity', async () => {
+    render(<App />)
+    await waitFor(() => screen.getByText('testuser/TestRepo'))
+    expect(screen.getByDisplayValue('Last activity')).toBeInTheDocument()
   })
 })
 
@@ -432,5 +482,51 @@ describe('Error handling', () => {
     await waitFor(() => {
       expect(screen.getByText(/Connection issue/)).toBeInTheDocument()
     })
+  })
+})
+
+/* ── inferRepoStatus ─────────────────────────────────────────── */
+
+describe('inferRepoStatus', () => {
+  const baseRepo = { ...mockRepo, stargazers_count: 0, forks_count: 0, topics: [] as string[] }
+
+  it('defaults to DRAFT tier for plain repo', () => {
+    const status = inferRepoStatus({ ...baseRepo })
+    expect(status.tier).toBe('DRAFT')
+  })
+
+  it('infers CORE from high stars', () => {
+    const status = inferRepoStatus({ ...baseRepo, stargazers_count: 10 })
+    expect(status.tier).toBe('CORE')
+  })
+
+  it('infers ARCHIVED from topic', () => {
+    const status = inferRepoStatus({ ...baseRepo, topics: ['archived'] })
+    expect(status.tier).toBe('ARCHIVED')
+  })
+
+  it('infers EXPERIMENTAL from topic', () => {
+    const status = inferRepoStatus({ ...baseRepo, topics: ['experimental'] })
+    expect(status.tier).toBe('EXPERIMENTAL')
+  })
+
+  it('infers PILOT from topic', () => {
+    const status = inferRepoStatus({ ...baseRepo, topics: ['pilot'] })
+    expect(status.tier).toBe('PILOT')
+  })
+
+  it('infers PRODUCTION deploy from topic', () => {
+    const status = inferRepoStatus({ ...baseRepo, topics: ['production'] })
+    expect(status.deploymentStatus).toBe('PRODUCTION')
+  })
+
+  it('returns NONE deployment for plain repo', () => {
+    const status = inferRepoStatus({ ...baseRepo })
+    expect(status.deploymentStatus).toBe('NONE')
+  })
+
+  it('includes openIssueCount from repo', () => {
+    const status = inferRepoStatus({ ...baseRepo, open_issues_count: 5 })
+    expect(status.openIssueCount).toBe(5)
   })
 })

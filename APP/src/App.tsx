@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef, type FormEvent } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, type FormEvent } from 'react'
 import './App.css'
 import * as gh from './github'
-import type { RepoCtx } from './github'
+import type { RepoCtx, RepoTier, DeploymentStatus } from './github'
 
 /* ── helpers ───────────────────────────────────────────────── */
 
@@ -128,7 +128,49 @@ function MetricCard({ label, value, sub }: { label: string; value: string | numb
     )
 }
 
+/* ── status badges ──────────────────────────────────────────── */
+
+const TIER_LABELS: Record<RepoTier, string> = { CORE: 'Core', PILOT: 'Pilot', DRAFT: 'Draft', ARCHIVED: 'Archived', EXPERIMENTAL: 'Experimental' }
+const DEPLOY_LABELS: Record<DeploymentStatus, string> = { PRODUCTION: 'Production', STAGING: 'Staging', LOCAL: 'Local', NONE: 'None' }
+
+function StatusBadge({ tier }: { tier: RepoTier }) {
+    return <span className={`status-badge tier-${tier.toLowerCase()}`}>{TIER_LABELS[tier]}</span>
+}
+
+function DeployBadge({ status }: { status: DeploymentStatus }) {
+    if (status === 'NONE') return null
+    return <span className={`status-badge deploy-${status.toLowerCase()}`}>{DEPLOY_LABELS[status]}</span>
+}
+
+/* ── repo card ─────────────────────────────────────────────── */
+
+function RepoCard({ repo, onClick }: { repo: gh.Repo; onClick: () => void }) {
+    const status = gh.inferRepoStatus(repo)
+    return (
+        <button className="repo-card" type="button" onClick={onClick}>
+            <div className="repo-card-header">
+                <span className="repo-card-name">{repo.full_name}</span>
+                <div className="repo-card-badges">
+                    <StatusBadge tier={status.tier} />
+                    <DeployBadge status={status.deploymentStatus} />
+                    {repo.private && <span className="status-badge badge-private">Private</span>}
+                </div>
+            </div>
+            {repo.description && <p className="repo-card-desc">{repo.description}</p>}
+            <div className="repo-card-meta">
+                {repo.language && <span className="repo-card-lang">{repo.language}</span>}
+                <span>★ {repo.stargazers_count}</span>
+                <span>⑂ {repo.forks_count}</span>
+                {status.openIssueCount > 0 && <span>◎ {status.openIssueCount}</span>}
+                <span className="repo-card-time">{relativeTime(repo.updated_at)}</span>
+            </div>
+        </button>
+    )
+}
+
 /* ── repo picker ───────────────────────────────────────────── */
+
+type SortKey = 'activity' | 'issues' | 'stars' | 'name'
 
 function RepoPicker({ onSelect, user }: { onSelect: (ctx: RepoCtx) => void; user: gh.GHUser | null }) {
     const [repos, setRepos] = useState<gh.Repo[]>([])
@@ -137,6 +179,9 @@ function RepoPicker({ onSelect, user }: { onSelect: (ctx: RepoCtx) => void; user
     const [query, setQuery] = useState('')
     const [newRepo, setNewRepo] = useState(false)
     const [creating, setCreating] = useState(false)
+    const [tierFilter, setTierFilter] = useState<RepoTier | 'ALL'>('ALL')
+    const [deployFilter, setDeployFilter] = useState<DeploymentStatus | 'ALL'>('ALL')
+    const [sortKey, setSortKey] = useState<SortKey>('activity')
     const inputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
@@ -152,10 +197,25 @@ function RepoPicker({ onSelect, user }: { onSelect: (ctx: RepoCtx) => void; user
         setTimeout(() => inputRef.current?.focus(), 100)
     }, [])
 
-    const filtered = repos.filter(r =>
-        r.full_name.toLowerCase().includes(query.toLowerCase()) ||
-        (r.description ?? '').toLowerCase().includes(query.toLowerCase())
-    )
+    const filtered = useMemo(() => {
+        let list = repos.filter(r =>
+            r.full_name.toLowerCase().includes(query.toLowerCase()) ||
+            (r.description ?? '').toLowerCase().includes(query.toLowerCase())
+        )
+        if (tierFilter !== 'ALL') list = list.filter(r => gh.inferRepoStatus(r).tier === tierFilter)
+        if (deployFilter !== 'ALL') list = list.filter(r => gh.inferRepoStatus(r).deploymentStatus === deployFilter)
+
+        list = [...list].sort((a, b) => {
+            switch (sortKey) {
+                case 'activity': return new Date(b.pushed_at).getTime() - new Date(a.pushed_at).getTime()
+                case 'issues': return b.open_issues_count - a.open_issues_count
+                case 'stars': return b.stargazers_count - a.stargazers_count
+                case 'name': return a.full_name.localeCompare(b.full_name)
+                default: return 0
+            }
+        })
+        return list
+    }, [repos, query, tierFilter, deployFilter, sortKey])
 
     async function handleCreate(e: FormEvent<HTMLFormElement>) {
         e.preventDefault()
@@ -210,6 +270,39 @@ function RepoPicker({ onSelect, user }: { onSelect: (ctx: RepoCtx) => void; user
                     </button>
                 </div>
 
+                <div className="picker-controls">
+                    <div className="picker-filter-group">
+                        <label className="picker-filter-label">Tier</label>
+                        <select className="picker-select" value={tierFilter} onChange={e => setTierFilter(e.target.value as RepoTier | 'ALL')}>
+                            <option value="ALL">All tiers</option>
+                            <option value="CORE">Core</option>
+                            <option value="PILOT">Pilot</option>
+                            <option value="DRAFT">Draft</option>
+                            <option value="EXPERIMENTAL">Experimental</option>
+                            <option value="ARCHIVED">Archived</option>
+                        </select>
+                    </div>
+                    <div className="picker-filter-group">
+                        <label className="picker-filter-label">Deploy</label>
+                        <select className="picker-select" value={deployFilter} onChange={e => setDeployFilter(e.target.value as DeploymentStatus | 'ALL')}>
+                            <option value="ALL">All statuses</option>
+                            <option value="PRODUCTION">Production</option>
+                            <option value="STAGING">Staging</option>
+                            <option value="LOCAL">Local</option>
+                            <option value="NONE">None</option>
+                        </select>
+                    </div>
+                    <div className="picker-filter-group">
+                        <label className="picker-filter-label">Sort</label>
+                        <select className="picker-select" value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)}>
+                            <option value="activity">Last activity</option>
+                            <option value="issues">Issue count</option>
+                            <option value="stars">Stars</option>
+                            <option value="name">Name</option>
+                        </select>
+                    </div>
+                </div>
+
                 {newRepo && (
                     <form className="surface picker-create-form" onSubmit={handleCreate}>
                         <input name="name" className="form-input" placeholder="Repository name" required autoFocus />
@@ -226,31 +319,10 @@ function RepoPicker({ onSelect, user }: { onSelect: (ctx: RepoCtx) => void; user
                 {loading ? (
                     <div className="picker-loading">Loading repositories…</div>
                 ) : (
-                    <div className="picker-list">
+                    <div className="picker-grid">
                         {filtered.length === 0 && <p className="empty-state">{query ? 'No matching repositories' : 'No repositories found'}</p>}
                         {filtered.map(r => (
-                            <button
-                                key={r.id}
-                                className="picker-item"
-                                type="button"
-                                onClick={() => onSelect({ owner: r.owner.login, repo: r.name })}
-                            >
-                                <div className="picker-item-main">
-                                    <span className="picker-item-name">{r.full_name}</span>
-                                    <div className="picker-item-meta">
-                                        {r.private && <span className="tag">private</span>}
-                                        {r.fork && <span className="tag">fork</span>}
-                                        {r.language && <span className="tag lang">{r.language}</span>}
-                                        <span className="picker-item-time">{relativeTime(r.updated_at)}</span>
-                                    </div>
-                                </div>
-                                {r.description && <p className="picker-item-desc">{r.description}</p>}
-                                <div className="picker-item-stats">
-                                    <span>★ {r.stargazers_count}</span>
-                                    <span>⑂ {r.forks_count}</span>
-                                    {r.open_issues_count > 0 && <span>◎ {r.open_issues_count}</span>}
-                                </div>
-                            </button>
+                            <RepoCard key={r.id} repo={r} onClick={() => onSelect({ owner: r.owner.login, repo: r.name })} />
                         ))}
                     </div>
                 )}

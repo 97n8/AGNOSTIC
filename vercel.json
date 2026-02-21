@@ -3,8 +3,8 @@
   "installCommand": "npm --prefix APP ci",
   "buildCommand": "npm --prefix APP run build",
   "outputDirectory": "APP/dist",
-  "redirects": [
-    { "source": "/(.*)", "destination": "https://97n8.github.io/LogicCommons/#", "permanent": false }
+  "rewrites": [
+    { "source": "/(.*)", "destination": "https://97n8.github.io/LogicCommons/$1" }
   ],
   "headers": [
     {

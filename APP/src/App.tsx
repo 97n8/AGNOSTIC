@@ -128,9 +128,8 @@ export default function App() {
                 {page === 'Vault' && <VaultPage variables={live.variables} loading={live.loading} ctx={ctx} toast={toast} refresh={live.refresh} />}
                 {page === 'Environments' && <EnvironmentsPage envBranches={envBranches} loading={live.loading} ctx={ctx} activeBranch={activeBranch} toast={toast} />}
                 {page === 'Settings' && <SettingsPage user={user} onSwitchRepo={() => setCtx(null)} />}
-            </main>
                 </div>
-            </div>
+            </main>
 
             <div className="toast-stack">
                 {toasts.map(t => <div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>)}

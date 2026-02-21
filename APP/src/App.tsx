@@ -125,7 +125,7 @@ function MetricCard({ label, value, sub }: { label: string; value: string | numb
 
 function RepoPicker({ onSelect, user }: { onSelect: (ctx: RepoCtx) => void; user: gh.GHUser | null }) {
     const [repos, setRepos] = useState<gh.Repo[]>([])
-    const [loading, setLoading] = useState(false)
+    const [loading, setLoading] = useState(gh.hasToken())
     const [error, setError] = useState<string | null>(null)
     const [query, setQuery] = useState('')
     const [newRepo, setNewRepo] = useState(false)
@@ -134,10 +134,11 @@ function RepoPicker({ onSelect, user }: { onSelect: (ctx: RepoCtx) => void; user
 
     useEffect(() => {
         if (!gh.hasToken()) return
-        setLoading(true)
+        let cancelled = false
         gh.fetchUserRepos()
-            .then(r => { setRepos(r); setLoading(false) })
-            .catch(e => { setError(e.message); setLoading(false) })
+            .then(r => { if (!cancelled) { setRepos(r); setLoading(false) } })
+            .catch(e => { if (!cancelled) { setError(e.message); setLoading(false) } })
+        return () => { cancelled = true }
     }, [])
 
     useEffect(() => {

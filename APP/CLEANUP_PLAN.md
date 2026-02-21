@@ -57,3 +57,10 @@ Delete in this order, validating after each batch:
 - `npm --prefix APP run lint` (if lint is configured)
 
 Only continue deletion when all active gates pass.
+
+## Removal: legacy-root-src
+- Date: 2026-02-21 09:52:59Z UTC
+- Action: Removed APP/legacy-root-src after successful migration of contents into APP/src.
+- Branch: cleanup/remove-legacy-root-src
+- Commit: chore(cleanup): remove empty APP/legacy-root-src after migration
+- Notes: Backups (.scaffold.bak) were removed earlier in cleanup/remove-scaffold-backups.

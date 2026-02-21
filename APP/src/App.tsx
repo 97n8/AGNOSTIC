@@ -486,8 +486,8 @@ export default function App() {
                     <span>{ctx.owner}/{ctx.repo}</span>
                 </div>
                 <nav className="nav">
-                    {NAV_GROUPS.map(g => (
-                        <div key={g.label || 'settings'}>
+                    {NAV_GROUPS.map((g, gi) => (
+                        <div key={gi}>
                             {g.label && <div className="nav-group-label">{g.label}</div>}
                             {g.pages.map(n => (
                                 <button key={n} className={`nav-item${page === n ? ' active' : ''}`} type="button" onClick={() => setPage(n)}>

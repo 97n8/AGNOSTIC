@@ -29,6 +29,13 @@ function formatDate(): string {
     }).format(new Date())
 }
 
+function textColorForBg(hex: string): string {
+    const r = parseInt(hex.slice(0, 2), 16)
+    const g = parseInt(hex.slice(2, 4), 16)
+    const b = parseInt(hex.slice(4, 6), 16)
+    return (r * 0.299 + g * 0.587 + b * 0.114) > 150 ? '#000' : '#fff'
+}
+
 /* ── toast ─────────────────────────────────────────────────── */
 
 type ToastType = 'success' | 'error' | 'info'
@@ -444,7 +451,7 @@ export default function App() {
                                                 <span className={`tag ${i.state}`}>{i.state}</span>
                                             </div>
                                             <div>
-                                                {i.labels.map(l => <span key={l.name} className="tag" style={{ background: `#${l.color}` }}>{l.name}</span>)}
+                                                {i.labels.map(l => <span key={l.name} className="tag" style={{ background: `#${l.color}`, color: textColorForBg(l.color) }}>{l.name}</span>)}
                                                 <span>{relativeTime(i.created_at)}</span>
                                             </div>
                                         </div>
@@ -527,7 +534,7 @@ export default function App() {
                             ? <EmptyState text="No labels" loading={live.loading} />
                             : <div className="label-grid">
                                 {live.labels.map(l => (
-                                    <span key={l.name} className="label-chip large" style={{ background: `#${l.color}` }}>{l.name}</span>
+                                    <span key={l.name} className="label-chip large" style={{ background: `#${l.color}`, color: textColorForBg(l.color) }}>{l.name}</span>
                                 ))}
                             </div>
                         }
@@ -540,7 +547,7 @@ export default function App() {
                             <div className="breadcrumb">
                                 <button type="button" onClick={() => { setFilePath([]); setOpenFile(null) }}>root</button>
                                 {filePath.map((seg, i) => (
-                                    <button key={seg + i} type="button" onClick={() => { setFilePath(filePath.slice(0, i + 1)); setOpenFile(null) }}>/ {seg}</button>
+                                    <button key={filePath.slice(0, i + 1).join('/')} type="button" onClick={() => { setFilePath(filePath.slice(0, i + 1)); setOpenFile(null) }}>/ {seg}</button>
                                 ))}
                             </div>
                             {openFile ? (
@@ -555,7 +562,7 @@ export default function App() {
                                                 toast('File saved', 'success')
                                                 setOpenFile(null)
                                                 setCommitMsg('')
-                                            } catch (e) { toast(`Failed: ${e instanceof Error ? e.message : 'unknown'}`, 'error') }
+                                            } catch (e) { toast(`Failed to save file: ${e instanceof Error ? e.message : 'unknown'}`, 'error') }
                                         }}>Save</button>
                                         <button className="button" type="button" onClick={() => setOpenFile(null)}>Cancel</button>
                                     </div>
@@ -574,10 +581,10 @@ export default function App() {
                                                     const content = gh.decodeContent(file.content)
                                                     setOpenFile({ path: file.path, content, sha: file.sha })
                                                     setEditContent(content)
-                                                } catch (err) { toast(`Failed: ${err instanceof Error ? err.message : 'unknown'}`, 'error') }
+                                                } catch (err) { toast(`Failed to load file: ${err instanceof Error ? err.message : 'unknown'}`, 'error') }
                                             }
                                         }}>
-                                            <span className="file-icon">{entry.type === 'dir' ? '📁' : '📄'}</span>
+                                            <span className="file-icon" aria-label={entry.type === 'dir' ? 'Directory' : 'File'}>{entry.type === 'dir' ? '📁' : '📄'}</span>
                                             <span className="file-name">{entry.name}</span>
                                         </div>
                                     ))}

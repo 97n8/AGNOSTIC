@@ -77,3 +77,29 @@ Only continue deletion when all active gates pass.
 - Action: Final integration branch created and all migration branches merged. Workflows (`app-build.yml`) and `vercel.json` updated to use `APP` as canonical build root. `README.md` rewritten.
 - Branch: cleanup/finalize
 - Notes: After merging this PR into `main`, delete all `cleanup/*` branches and optionally tag `v1.0.0`.
+
+## Component Library Strategy
+
+**Decision**: Keep in-repo for now under `PublicLogic OS Component Library (4)/`.
+
+**Rationale**: The component library is self-contained with its own `package.json`, build, and test scripts. It doesn't block APP development and can be consumed as a local dependency when needed.
+
+**Future options** (choose when the library stabilizes):
+1. **npm workspaces** — Add a root `package.json` with `"workspaces": ["APP", "PublicLogic OS Component Library (4)"]` so APP can import components directly.
+2. **Extract to own repo/package** — Publish as `@publiclogic/components` on npm. Best if other projects need it.
+
+**Remaining cleanup**:
+- `.github/workflows/pages.yml` still builds the component library for GitHub Pages. Keep or remove based on whether the library site is still needed.
+- `scripts/vercel-build.mjs` may be orphaned — verify and delete if unused.
+- Root `package.json` and `package-lock.json` are legacy — delete once workspaces are configured or the component library is extracted.
+
+## Production Hardening (v1.0.0-app-migration follow-up)
+
+- [x] Vitest + @testing-library/react added with smoke tests
+- [x] CI workflow updated: lint, type-check, build, test, audit
+- [x] `vercel` CLI removed from devDeps (eliminated 27 of 37 audit vulnerabilities)
+- [x] `concurrently` and legacy scripts cleaned from package.json
+- [x] CONTRIBUTING.md added
+- [ ] Remaining audit: 10 high (minimatch via eslint) — upstream fix requires ESLint 10. Dev-only, no production impact.
+- [ ] Branch protection: require `App Build & Test` status check + PR review before merging to main
+- [ ] Consider Prettier / format-on-save for consistent code style

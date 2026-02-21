@@ -305,6 +305,18 @@ describe('Shell after repo selection', () => {
     await renderAndPick()
     fireEvent.click(screen.getByRole('button', { name: /^Vault/ }))
     expect(screen.getByText('No variables in vault')).toBeInTheDocument()
+    expect(screen.getByText('+ Add Variable')).toBeInTheDocument()
+  })
+
+  it('Vault add form opens and closes', async () => {
+    await renderAndPick()
+    fireEvent.click(screen.getByRole('button', { name: /^Vault/ }))
+    fireEvent.click(screen.getByText('+ Add Variable'))
+    expect(screen.getByPlaceholderText(/Variable name/)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Value')).toBeInTheDocument()
+    expect(screen.getByText('Save Variable')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('✕ Cancel'))
+    expect(screen.queryByPlaceholderText(/Variable name/)).not.toBeInTheDocument()
   })
 
   it('navigates to Environments page', async () => {
@@ -471,6 +483,53 @@ describe('Shell after repo selection', () => {
     await waitFor(() => screen.getByText('Create'))
     fireEvent.click(screen.getByText('✕'))
     expect(screen.queryByText('Create')).not.toBeInTheDocument()
+  })
+
+  it('create modal shows Issue form on click', async () => {
+    await renderAndPick()
+    fireEvent.click(document.querySelector('.create-btn')!)
+    await waitFor(() => screen.getByText('Create'))
+    fireEvent.click(screen.getByText('Issue'))
+    expect(screen.getByRole('button', { name: 'Create Issue' })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Issue title')).toBeInTheDocument()
+    expect(screen.getByText('← Back')).toBeInTheDocument()
+  })
+
+  it('create modal shows Label form on click', async () => {
+    await renderAndPick()
+    fireEvent.click(document.querySelector('.create-btn')!)
+    await waitFor(() => screen.getByText('Create'))
+    fireEvent.click(screen.getByText('Label'))
+    expect(screen.getByRole('button', { name: 'Create Label' })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Label name')).toBeInTheDocument()
+  })
+
+  it('create modal shows Variable form on click', async () => {
+    await renderAndPick()
+    fireEvent.click(document.querySelector('.create-btn')!)
+    await waitFor(() => screen.getByText('Create'))
+    fireEvent.click(screen.getByText('Variable'))
+    expect(screen.getByRole('button', { name: 'Save Variable' })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Variable name/)).toBeInTheDocument()
+  })
+
+  it('create modal Back button returns to options', async () => {
+    await renderAndPick()
+    fireEvent.click(document.querySelector('.create-btn')!)
+    await waitFor(() => screen.getByText('Create'))
+    fireEvent.click(screen.getByText('Issue'))
+    expect(screen.getByRole('button', { name: 'Create Issue' })).toBeInTheDocument()
+    fireEvent.click(screen.getByText('← Back'))
+    expect(screen.getByText('Issue')).toBeInTheDocument()
+    expect(screen.getByText('Label')).toBeInTheDocument()
+  })
+
+  it('create modal shows coming soon for unimplemented options', async () => {
+    await renderAndPick()
+    fireEvent.click(document.querySelector('.create-btn')!)
+    await waitFor(() => screen.getByText('Create'))
+    fireEvent.click(screen.getByText('Workflow'))
+    expect(screen.getByText(/Coming soon/)).toBeInTheDocument()
   })
 
   it('shows toast stack container', async () => {

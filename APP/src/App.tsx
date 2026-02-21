@@ -364,19 +364,105 @@ function TokenSetup({ onSaved }: { onSaved: () => void }) {
 
 /* ── universal create modal ────────────────────────────────── */
 
-function CreateModal({ onClose }: { onClose: () => void }) {
+function CreateModal({ ctx, onClose, toast, onCreated }: {
+    ctx: RepoCtx
+    onClose: () => void
+    toast: (msg: string, type: ToastType) => void
+    onCreated: () => void
+}) {
+    const [active, setActive] = useState<string | null>(null)
+    const [submitting, setSubmitting] = useState(false)
     const options = ['Issue', 'Pull Request', 'Branch', 'Label', 'File', 'Environment', 'Variable', 'Workflow', 'Repository']
+
+    async function handleIssue(e: FormEvent<HTMLFormElement>) {
+        e.preventDefault()
+        const fd = new FormData(e.currentTarget)
+        const title = (fd.get('title') as string).trim()
+        if (!title) return
+        setSubmitting(true)
+        try {
+            await gh.createIssue(ctx, title, (fd.get('body') as string).trim() || undefined)
+            toast('Issue created', 'success')
+            onCreated(); onClose()
+        } catch (err) { toast(`Failed: ${err instanceof Error ? err.message : 'unknown'}`, 'error') }
+        setSubmitting(false)
+    }
+
+    async function handleLabel(e: FormEvent<HTMLFormElement>) {
+        e.preventDefault()
+        const fd = new FormData(e.currentTarget)
+        const name = (fd.get('name') as string).trim()
+        const color = (fd.get('color') as string).replace('#', '').trim()
+        if (!name || !color) return
+        setSubmitting(true)
+        try {
+            await gh.createLabel(ctx, name, color, (fd.get('description') as string).trim() || undefined)
+            toast('Label created', 'success')
+            onCreated(); onClose()
+        } catch (err) { toast(`Failed: ${err instanceof Error ? err.message : 'unknown'}`, 'error') }
+        setSubmitting(false)
+    }
+
+    async function handleVariable(e: FormEvent<HTMLFormElement>) {
+        e.preventDefault()
+        const fd = new FormData(e.currentTarget)
+        const name = (fd.get('name') as string).trim()
+        const value = (fd.get('value') as string).trim()
+        if (!name || !value) return
+        setSubmitting(true)
+        try {
+            await gh.setVariable(ctx, name, value)
+            toast('Variable saved', 'success')
+            onCreated(); onClose()
+        } catch (err) { toast(`Failed: ${err instanceof Error ? err.message : 'unknown'}`, 'error') }
+        setSubmitting(false)
+    }
+
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                    <h2>Create</h2>
-                    <button type="button" onClick={onClose}>✕</button>
+                    <h2>{active ? `Create ${active}` : 'Create'}</h2>
+                    <button type="button" onClick={() => active ? setActive(null) : onClose()}>
+                        {active ? '← Back' : '✕'}
+                    </button>
                 </div>
                 <div className="modal-body">
-                    {options.map(o => (
-                        <button key={o} className="modal-option" type="button">{o}</button>
+                    {!active && options.map(o => (
+                        <button key={o} className="modal-option" type="button" onClick={() => setActive(o)}>{o}</button>
                     ))}
+
+                    {active === 'Issue' && (
+                        <form className="create-form" onSubmit={handleIssue}>
+                            <input name="title" className="form-input" placeholder="Issue title" required autoFocus />
+                            <textarea name="body" className="form-input create-textarea" placeholder="Description (optional)" rows={4} />
+                            <button className="button primary" type="submit" disabled={submitting}>{submitting ? 'Creating…' : 'Create Issue'}</button>
+                        </form>
+                    )}
+
+                    {active === 'Label' && (
+                        <form className="create-form" onSubmit={handleLabel}>
+                            <input name="name" className="form-input" placeholder="Label name" required autoFocus />
+                            <div className="create-color-row">
+                                <input name="color" className="form-input" placeholder="Color hex (e.g. d73a4a)" defaultValue="0075ca" />
+                                <span className="create-color-preview" style={{ background: '#0075ca' }} />
+                            </div>
+                            <input name="description" className="form-input" placeholder="Description (optional)" />
+                            <button className="button primary" type="submit" disabled={submitting}>{submitting ? 'Creating…' : 'Create Label'}</button>
+                        </form>
+                    )}
+
+                    {active === 'Variable' && (
+                        <form className="create-form" onSubmit={handleVariable}>
+                            <input name="name" className="form-input" placeholder="Variable name (e.g. MY_CONFIG)" required autoFocus />
+                            <input name="value" className="form-input" placeholder="Value" required />
+                            <button className="button primary" type="submit" disabled={submitting}>{submitting ? 'Saving…' : 'Save Variable'}</button>
+                        </form>
+                    )}
+
+                    {active && !['Issue', 'Label', 'Variable'].includes(active) && (
+                        <p className="empty-state">Coming soon — use the GitHub API or CLI to create a {active.toLowerCase()} for now</p>
+                    )}
                 </div>
             </div>
         </div>
@@ -443,6 +529,7 @@ export default function App() {
     const [scaffolding, setScaffolding] = useState(false)
     const [inspectEntry, setInspectEntry] = useState<RegistryEntry | null>(null)
     const [lastScaffold, setLastScaffold] = useState<gh.ScaffoldResult | null>(null)
+    const [vaultAddOpen, setVaultAddOpen] = useState(false)
     const { toasts, push: toast } = useToasts()
     const live = useLiveData(ctx)
     const activeBranch = live.repo?.default_branch ?? 'main'
@@ -800,13 +887,48 @@ export default function App() {
 
                 {page === 'Vault' && (
                     <section className="page-vault">
-                        {live.variables.length === 0
+                        <div className="page-header">
+                            <h2>Vault</h2>
+                            <button className="button primary" type="button" onClick={() => setVaultAddOpen(!vaultAddOpen)}>
+                                {vaultAddOpen ? '✕ Cancel' : '+ Add Variable'}
+                            </button>
+                        </div>
+                        {vaultAddOpen && (
+                            <form className="surface vault-add-form" onSubmit={async (e: FormEvent) => {
+                                e.preventDefault()
+                                if (!ctx) return
+                                if (!gh.hasToken()) { toast('Set a GitHub token in Settings to perform actions', 'error'); return }
+                                const fd = new FormData(e.currentTarget as HTMLFormElement)
+                                const name = (fd.get('name') as string).trim()
+                                const value = (fd.get('value') as string).trim()
+                                if (!name || !value) return
+                                try {
+                                    await gh.setVariable(ctx, name, value)
+                                    toast(`Variable "${name}" saved`, 'success')
+                                    setVaultAddOpen(false)
+                                    live.refresh()
+                                } catch (e) { toast(`Failed: ${e instanceof Error ? e.message : 'unknown'}`, 'error') }
+                            }}>
+                                <input name="name" className="form-input" placeholder="Variable name (e.g. MY_CONFIG)" required autoFocus />
+                                <input name="value" className="form-input" placeholder="Value" required />
+                                <button className="button primary" type="submit">Save Variable</button>
+                            </form>
+                        )}
+                        {live.variables.length === 0 && !vaultAddOpen
                             ? <EmptyState text="No variables in vault" loading={live.loading} />
                             : <div className="item-list">
                                 {live.variables.map(v => (
                                     <div key={v.name} className="item-row vault-row">
                                         <span className="vault-name">{v.name}</span>
                                         <span className="vault-value">{v.value}</span>
+                                        <button className="button vault-delete" type="button" onClick={async () => {
+                                            if (!ctx) return
+                                            try {
+                                                await gh.deleteVariable(ctx, v.name)
+                                                toast(`Deleted "${v.name}"`, 'success')
+                                                live.refresh()
+                                            } catch (e) { toast(`Failed: ${e instanceof Error ? e.message : 'unknown'}`, 'error') }
+                                        }}>Delete</button>
                                     </div>
                                 ))}
                             </div>
@@ -1005,7 +1127,7 @@ export default function App() {
                 />
             )}
 
-            {createOpen && <CreateModal onClose={() => setCreateOpen(false)} />}
+            {createOpen && <CreateModal ctx={ctx} onClose={() => setCreateOpen(false)} toast={toast} onCreated={live.refresh} />}
         </div>
     )
 }

@@ -1,7 +1,8 @@
 import { render, screen, cleanup, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import App from './App'
-import { inferRepoStatus } from './github'
+import { inferRepoStatus, getTemplate, BUILTIN_TEMPLATES, deployCommandsForEntry, verifyStepsForEntry } from './github'
+import type { RegistryEntry } from './github'
 
 afterEach(() => {
   cleanup()
@@ -57,6 +58,9 @@ function mockFetch() {
     }
     if (url.includes('/actions/runs')) {
       return { ok: true, status: 200, json: async () => ({ workflow_runs: [] }) }
+    }
+    if (url.includes('/actions/workflows')) {
+      return { ok: true, status: 200, json: async () => ({ workflows: [{ id: 1, name: 'App Build & Test', path: '.github/workflows/app-build.yml', state: 'active' }] }) }
     }
     if (url.includes('/branches')) {
       return { ok: true, status: 200, json: async () => [{ name: 'main', protected: true, commit: { sha: 'abc1234', url: '' } }] }
@@ -240,7 +244,7 @@ describe('Shell after repo selection', () => {
 
   it('renders all nav items', async () => {
     await renderAndPick()
-    const navLabels = ['Dashboard', 'Today', 'Issues', 'PRs', 'Lists', 'CI', 'Pipeline', 'Branches', 'Labels', 'Files', 'Projects', 'Playbooks', 'Tools', 'Cases', 'Vault', 'Environments', 'Settings']
+    const navLabels = ['Dashboard', 'Today', 'Issues', 'PRs', 'Lists', 'CI', 'Pipeline', 'Branches', 'Labels', 'Files', 'Projects', 'Playbooks', 'Tools', 'Cases', 'Vault', 'Environments', 'Registry', 'Settings']
     for (const label of navLabels) {
       expect(screen.getByRole('button', { name: new RegExp(label) })).toBeInTheDocument()
     }
@@ -303,6 +307,25 @@ describe('Shell after repo selection', () => {
     await renderAndPick()
     fireEvent.click(screen.getByRole('button', { name: /^CI/ }))
     expect(screen.getByText('No workflow runs')).toBeInTheDocument()
+    expect(screen.getByText('▶ Run Workflow')).toBeInTheDocument()
+  })
+
+  it('CI run workflow form opens and closes', async () => {
+    await renderAndPick()
+    fireEvent.click(screen.getByRole('button', { name: /^CI/ }))
+    fireEvent.click(screen.getByText('▶ Run Workflow'))
+    expect(screen.getByText('Dispatch')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('✕ Cancel'))
+    expect(screen.queryByText('Dispatch')).not.toBeInTheDocument()
+  })
+
+  it('CI run workflow form shows workflow dropdown when workflows exist', async () => {
+    await renderAndPick()
+    fireEvent.click(screen.getByRole('button', { name: /^CI/ }))
+    fireEvent.click(screen.getByText('▶ Run Workflow'))
+    await waitFor(() => {
+      expect(screen.getByText('Select workflow…')).toBeInTheDocument()
+    })
   })
 
   it('navigates to Files page', async () => {
@@ -322,12 +345,71 @@ describe('Shell after repo selection', () => {
     await renderAndPick()
     fireEvent.click(screen.getByRole('button', { name: /^Vault/ }))
     expect(screen.getByText('No variables in vault')).toBeInTheDocument()
+    expect(screen.getByText('+ Add Variable')).toBeInTheDocument()
+  })
+
+  it('Vault add form opens and closes', async () => {
+    await renderAndPick()
+    fireEvent.click(screen.getByRole('button', { name: /^Vault/ }))
+    fireEvent.click(screen.getByText('+ Add Variable'))
+    expect(screen.getByPlaceholderText(/Variable name/)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Value')).toBeInTheDocument()
+    expect(screen.getByText('Save Variable')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('✕ Cancel'))
+    expect(screen.queryByPlaceholderText(/Variable name/)).not.toBeInTheDocument()
   })
 
   it('navigates to Environments page', async () => {
     await renderAndPick()
     fireEvent.click(screen.getByRole('button', { name: /^Environments/ }))
     expect(screen.getByText(/No environments/)).toBeInTheDocument()
+    expect(screen.getByText('+ New Environment')).toBeInTheDocument()
+  })
+
+  it('Environments create form opens and closes', async () => {
+    await renderAndPick()
+    fireEvent.click(screen.getByRole('button', { name: /^Environments/ }))
+    fireEvent.click(screen.getByText('+ New Environment'))
+    expect(screen.getByPlaceholderText(/Environment name/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Create Environment' })).toBeInTheDocument()
+    fireEvent.click(screen.getByText('✕ Cancel'))
+    expect(screen.queryByPlaceholderText(/Environment name/)).not.toBeInTheDocument()
+  })
+
+  it('navigates to Registry page', async () => {
+    await renderAndPick()
+    fireEvent.click(screen.getByRole('button', { name: /^Registry/ }))
+    expect(screen.getByText('Available Templates')).toBeInTheDocument()
+    expect(screen.getByText('Registered Units')).toBeInTheDocument()
+  })
+
+  it('Registry page shows built-in templates', async () => {
+    await renderAndPick()
+    fireEvent.click(screen.getByRole('button', { name: /^Registry/ }))
+    expect(screen.getByText(/typescript-docker@1\.0\.0/)).toBeInTheDocument()
+    expect(screen.getByText(/typescript-vercel@1\.0\.0/)).toBeInTheDocument()
+  })
+
+  it('Registry page shows scaffold button', async () => {
+    await renderAndPick()
+    fireEvent.click(screen.getByRole('button', { name: /^Registry/ }))
+    expect(screen.getByText('+ Scaffold Unit')).toBeInTheDocument()
+  })
+
+  it('Registry scaffold form opens and closes', async () => {
+    await renderAndPick()
+    fireEvent.click(screen.getByRole('button', { name: /^Registry/ }))
+    fireEvent.click(screen.getByText('+ Scaffold Unit'))
+    expect(screen.getByPlaceholderText('Unit name')).toBeInTheDocument()
+    expect(screen.getByText('Scaffold Unit')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('✕ Cancel'))
+    expect(screen.queryByPlaceholderText('Unit name')).not.toBeInTheDocument()
+  })
+
+  it('Registry shows empty state when no entries', async () => {
+    await renderAndPick()
+    fireEvent.click(screen.getByRole('button', { name: /^Registry/ }))
+    expect(screen.getByText(/No units registered/)).toBeInTheDocument()
   })
 
   it('navigates to Today page', async () => {
@@ -454,6 +536,70 @@ describe('Shell after repo selection', () => {
     expect(screen.queryByText('Create')).not.toBeInTheDocument()
   })
 
+  it('create modal shows Issue form on click', async () => {
+    await renderAndPick()
+    fireEvent.click(document.querySelector('.create-btn')!)
+    await waitFor(() => screen.getByText('Create'))
+    fireEvent.click(screen.getByText('Issue'))
+    expect(screen.getByRole('button', { name: 'Create Issue' })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Issue title')).toBeInTheDocument()
+    expect(screen.getByText('← Back')).toBeInTheDocument()
+  })
+
+  it('create modal shows Label form on click', async () => {
+    await renderAndPick()
+    fireEvent.click(document.querySelector('.create-btn')!)
+    await waitFor(() => screen.getByText('Create'))
+    fireEvent.click(screen.getByText('Label'))
+    expect(screen.getByRole('button', { name: 'Create Label' })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Label name')).toBeInTheDocument()
+  })
+
+  it('create modal shows Variable form on click', async () => {
+    await renderAndPick()
+    fireEvent.click(document.querySelector('.create-btn')!)
+    await waitFor(() => screen.getByText('Create'))
+    fireEvent.click(screen.getByText('Variable'))
+    expect(screen.getByRole('button', { name: 'Save Variable' })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Variable name/)).toBeInTheDocument()
+  })
+
+  it('create modal Back button returns to options', async () => {
+    await renderAndPick()
+    fireEvent.click(document.querySelector('.create-btn')!)
+    await waitFor(() => screen.getByText('Create'))
+    fireEvent.click(screen.getByText('Issue'))
+    expect(screen.getByRole('button', { name: 'Create Issue' })).toBeInTheDocument()
+    fireEvent.click(screen.getByText('← Back'))
+    expect(screen.getByText('Issue')).toBeInTheDocument()
+    expect(screen.getByText('Label')).toBeInTheDocument()
+  })
+
+  it('create modal shows Workflow form on click', async () => {
+    await renderAndPick()
+    fireEvent.click(document.querySelector('.create-btn')!)
+    await waitFor(() => screen.getByText('Create'))
+    fireEvent.click(screen.getByText('Workflow'))
+    expect(screen.getByRole('button', { name: 'Run Workflow' })).toBeInTheDocument()
+  })
+
+  it('create modal shows Environment form on click', async () => {
+    await renderAndPick()
+    fireEvent.click(document.querySelector('.create-btn')!)
+    await waitFor(() => screen.getByText('Create'))
+    fireEvent.click(screen.getByText('Environment'))
+    expect(screen.getByRole('button', { name: 'Create Environment' })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Environment name/)).toBeInTheDocument()
+  })
+
+  it('create modal shows coming soon for unimplemented options', async () => {
+    await renderAndPick()
+    fireEvent.click(document.querySelector('.create-btn')!)
+    await waitFor(() => screen.getByText('Create'))
+    fireEvent.click(screen.getByText('Pull Request'))
+    expect(screen.getByText(/Coming soon/)).toBeInTheDocument()
+  })
+
   it('shows toast stack container', async () => {
     await renderAndPick()
     expect(document.querySelector('.toast-stack')).toBeInTheDocument()
@@ -546,5 +692,131 @@ describe('inferRepoStatus', () => {
   it('includes openIssueCount from repo', () => {
     const status = inferRepoStatus({ ...baseRepo, open_issues_count: 5 })
     expect(status.openIssueCount).toBe(5)
+  })
+})
+
+/* ── Control Plane templates ─────────────────────────────────── */
+
+describe('Control Plane templates', () => {
+  it('BUILTIN_TEMPLATES has expected entries', () => {
+    expect(BUILTIN_TEMPLATES.length).toBeGreaterThanOrEqual(2)
+    expect(BUILTIN_TEMPLATES.find(t => t.name === 'typescript-docker')).toBeDefined()
+    expect(BUILTIN_TEMPLATES.find(t => t.name === 'typescript-vercel')).toBeDefined()
+  })
+
+  it('getTemplate returns typescript-docker by default', () => {
+    const tpl = getTemplate('typescript-docker', 'my-app', 'A test app')
+    expect(tpl.name).toBe('typescript-docker')
+    expect(tpl.version).toBe('1.0.0')
+    expect(tpl.language).toBe('TypeScript')
+    expect(tpl.deployTarget).toBe('docker')
+    expect(tpl.secrets).toContain('NODE_ENV')
+    expect(tpl.files.length).toBeGreaterThan(0)
+  })
+
+  it('typescript-docker template includes Dockerfile', () => {
+    const tpl = getTemplate('typescript-docker', 'my-app', 'A test app')
+    const dockerfile = tpl.files.find(f => f.path === 'Dockerfile')
+    expect(dockerfile).toBeDefined()
+    expect(dockerfile!.content).toContain('FROM node:20-alpine')
+  })
+
+  it('typescript-docker template includes .env.example', () => {
+    const tpl = getTemplate('typescript-docker', 'my-app', 'A test app')
+    const envFile = tpl.files.find(f => f.path === '.env.example')
+    expect(envFile).toBeDefined()
+    expect(envFile!.content).toContain('NODE_ENV')
+  })
+
+  it('typescript-docker template includes README with architecture', () => {
+    const tpl = getTemplate('typescript-docker', 'my-app', 'A test app')
+    const readme = tpl.files.find(f => f.path === 'README.md')
+    expect(readme).toBeDefined()
+    expect(readme!.content).toContain('Architecture')
+    expect(readme!.content).toContain('my-app')
+  })
+
+  it('getTemplate returns typescript-vercel template', () => {
+    const tpl = getTemplate('typescript-vercel', 'my-app', 'A vercel app')
+    expect(tpl.name).toBe('typescript-vercel')
+    expect(tpl.deployTarget).toBe('vercel')
+    expect(tpl.secrets).toContain('VERCEL_TOKEN')
+  })
+
+  it('typescript-vercel template has no Dockerfile', () => {
+    const tpl = getTemplate('typescript-vercel', 'my-app', 'A vercel app')
+    expect(tpl.files.find(f => f.path === 'Dockerfile')).toBeUndefined()
+  })
+
+  it('typescript-vercel template includes vercel.json', () => {
+    const tpl = getTemplate('typescript-vercel', 'my-app', 'A vercel app')
+    const vercelJson = tpl.files.find(f => f.path === 'vercel.json')
+    expect(vercelJson).toBeDefined()
+  })
+
+  it('getTemplate defaults to docker for unknown template', () => {
+    const tpl = getTemplate('nonexistent', 'my-app', 'fallback')
+    expect(tpl.name).toBe('typescript-docker')
+  })
+
+  it('template injects repo name into files', () => {
+    const tpl = getTemplate('typescript-docker', 'custom-name', 'Custom desc')
+    const pkg = tpl.files.find(f => f.path === 'package.json')
+    expect(pkg).toBeDefined()
+    expect(pkg!.content).toContain('custom-name')
+  })
+})
+
+/* ── Control Plane verbs: deploy & verify helpers ────────────── */
+
+describe('deployCommandsForEntry', () => {
+  const baseEntry: RegistryEntry = {
+    repoName: 'my-unit',
+    owner: 'testuser',
+    templateName: 'typescript-docker',
+    templateVersion: '1.0.0',
+    deployTarget: 'docker',
+    requiredConfig: ['NODE_ENV', 'PORT'],
+    status: 'active',
+    upgradePath: null,
+    createdAt: new Date().toISOString(),
+  }
+
+  it('returns docker commands for docker target', () => {
+    const cmds = deployCommandsForEntry(baseEntry)
+    expect(cmds).toContain('docker build -t my-unit .')
+    expect(cmds).toContain('docker run -p 3000:3000 my-unit')
+  })
+
+  it('returns vercel command for vercel target', () => {
+    const cmds = deployCommandsForEntry({ ...baseEntry, deployTarget: 'vercel' })
+    expect(cmds).toContain('VERCEL_TOKEN=$VERCEL_TOKEN npx vercel --prod')
+  })
+
+  it('returns manual fallback for custom target', () => {
+    const cmds = deployCommandsForEntry({ ...baseEntry, deployTarget: 'custom' })
+    expect(cmds[0]).toContain('Deploy manually')
+  })
+})
+
+describe('verifyStepsForEntry', () => {
+  const baseEntry: RegistryEntry = {
+    repoName: 'my-unit',
+    owner: 'testuser',
+    templateName: 'typescript-docker',
+    templateVersion: '1.0.0',
+    deployTarget: 'docker',
+    requiredConfig: [],
+    status: 'active',
+    upgradePath: null,
+    createdAt: new Date().toISOString(),
+  }
+
+  it('returns clone and build steps', () => {
+    const steps = verifyStepsForEntry(baseEntry)
+    expect(steps[0]).toContain('git clone')
+    expect(steps[0]).toContain('testuser/my-unit')
+    expect(steps).toContain('npm install')
+    expect(steps).toContain('npm run build')
   })
 })

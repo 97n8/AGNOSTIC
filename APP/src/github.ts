@@ -156,6 +156,13 @@ export interface PR {
   draft: boolean
 }
 
+export interface Workflow {
+  id: number
+  name: string
+  path: string
+  state: string
+}
+
 export interface WorkflowRun {
   id: number
   name: string
@@ -351,6 +358,11 @@ export const deleteBranch = (ctx: RepoCtx, name: string) =>
 
 /* ── Workflow operations ───────────────────────────────────── */
 
+export const fetchWorkflows = (ctx: RepoCtx) =>
+  api<{ workflows: Workflow[] }>(repoUrl(ctx, '/actions/workflows?per_page=30'))
+    .then(r => r.workflows)
+    .catch(() => [] as Workflow[])
+
 export const triggerWorkflow = (ctx: RepoCtx, workflowId: string, ref = 'main') =>
   api<void>(repoUrl(ctx, `/actions/workflows/${workflowId}/dispatches`), {
     method: 'POST',
@@ -379,6 +391,225 @@ export const setVariable = (ctx: RepoCtx, name: string, value: string) =>
 
 export const deleteVariable = (ctx: RepoCtx, name: string) =>
   api<void>(repoUrl(ctx, `/actions/variables/${name}`), { method: 'DELETE' })
+
+/* ── Control Plane: types ──────────────────────────────────── */
+
+export type DeployTarget = 'vercel' | 'docker' | 'github-pages' | 'custom'
+export type RegistryStatus = 'provisioning' | 'active' | 'archived'
+
+export interface RegistryEntry {
+  repoName: string
+  owner: string
+  templateName: string
+  templateVersion: string
+  deployTarget: DeployTarget
+  requiredConfig: string[]
+  status: RegistryStatus
+  upgradePath: string | null
+  createdAt: string
+}
+
+export interface RepoTemplate {
+  name: string
+  version: string
+  language: string
+  deployTarget: DeployTarget
+  secrets: string[]
+  files: { path: string; content: string }[]
+}
+
+/* ── Control Plane: built-in templates ─────────────────────── */
+
+function tsDockerTemplate(name: string, description: string): RepoTemplate {
+  return {
+    name: 'typescript-docker',
+    version: '1.0.0',
+    language: 'TypeScript',
+    deployTarget: 'docker',
+    secrets: ['NODE_ENV', 'PORT'],
+    files: [
+      {
+        path: 'README.md',
+        content:
+          `# ${name}\n\n${description}\n\n## Architecture\n\nThis repository was scaffolded by the LogicCommons Control Plane using the \`typescript-docker@1.0.0\` template.\n\n- **Language:** TypeScript\n- **Runtime:** Node.js 20\n- **Container:** Docker (multi-stage build)\n- **Deploy target:** Docker / any container host\n\n## Getting Started\n\n\`\`\`bash\nnpm install\nnpm run build\nnpm start\n\`\`\`\n\n## Docker\n\n\`\`\`bash\ndocker build -t ${name} .\ndocker run -p 3000:3000 ${name}\n\`\`\`\n`,
+      },
+      {
+        path: 'Dockerfile',
+        content:
+          `FROM node:20-alpine AS build\nWORKDIR /app\nCOPY package*.json ./\nRUN npm ci\nCOPY . .\nRUN npm run build\n\nFROM node:20-alpine\nWORKDIR /app\nCOPY --from=build /app/dist ./dist\nCOPY --from=build /app/node_modules ./node_modules\nCOPY --from=build /app/package.json ./\nENV NODE_ENV=production\nEXPOSE 3000\nCMD ["node", "dist/index.js"]\n`,
+      },
+      {
+        path: '.env.example',
+        content: `# ${name} environment variables\n# Copy to .env and fill in values\n\nNODE_ENV=development\nPORT=3000\n`,
+      },
+      {
+        path: 'tsconfig.json',
+        content: JSON.stringify({ compilerOptions: { target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext', outDir: 'dist', rootDir: 'src', strict: true, esModuleInterop: true, skipLibCheck: true, declaration: true }, include: ['src'] }, null, 2) + '\n',
+      },
+      {
+        path: 'package.json',
+        content: JSON.stringify({ name, version: '0.1.0', description, private: true, type: 'module', scripts: { build: 'tsc', start: 'node dist/index.js', dev: 'tsc --watch' }, engines: { node: '>=20' } }, null, 2) + '\n',
+      },
+      {
+        path: 'src/index.ts',
+        content: `console.log('${name} is running');\n`,
+      },
+    ],
+  }
+}
+
+function tsVercelTemplate(name: string, description: string): RepoTemplate {
+  return {
+    name: 'typescript-vercel',
+    version: '1.0.0',
+    language: 'TypeScript',
+    deployTarget: 'vercel',
+    secrets: ['VERCEL_TOKEN', 'VERCEL_ORG_ID', 'VERCEL_PROJECT_ID'],
+    files: [
+      {
+        path: 'README.md',
+        content:
+          `# ${name}\n\n${description}\n\n## Architecture\n\nScaffolded by LogicCommons Control Plane using \`typescript-vercel@1.0.0\`.\n\n- **Language:** TypeScript\n- **Deploy target:** Vercel\n\n## Getting Started\n\n\`\`\`bash\nnpm install\nnpm run dev\n\`\`\`\n\n## Deploy\n\n\`\`\`bash\nnpx vercel --prod\n\`\`\`\n`,
+      },
+      {
+        path: '.env.example',
+        content: `# ${name} environment variables\nVERCEL_TOKEN=\nVERCEL_ORG_ID=\nVERCEL_PROJECT_ID=\n`,
+      },
+      {
+        path: 'vercel.json',
+        content: JSON.stringify({ buildCommand: 'npm run build', outputDirectory: 'dist' }, null, 2) + '\n',
+      },
+      {
+        path: 'tsconfig.json',
+        content: JSON.stringify({ compilerOptions: { target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext', outDir: 'dist', rootDir: 'src', strict: true, esModuleInterop: true, skipLibCheck: true }, include: ['src'] }, null, 2) + '\n',
+      },
+      {
+        path: 'package.json',
+        content: JSON.stringify({ name, version: '0.1.0', description, private: true, type: 'module', scripts: { build: 'tsc', dev: 'tsc --watch' }, engines: { node: '>=20' } }, null, 2) + '\n',
+      },
+      {
+        path: 'src/index.ts',
+        content: `export default function handler() { return { status: 'ok' }; }\n`,
+      },
+    ],
+  }
+}
+
+export const BUILTIN_TEMPLATES: { name: string; version: string; deployTarget: DeployTarget; description: string }[] = [
+  { name: 'typescript-docker', version: '1.0.0', deployTarget: 'docker', description: 'TypeScript + Docker multi-stage build' },
+  { name: 'typescript-vercel', version: '1.0.0', deployTarget: 'vercel', description: 'TypeScript + Vercel serverless' },
+]
+
+export function getTemplate(templateName: string, repoName: string, description: string): RepoTemplate {
+  switch (templateName) {
+    case 'typescript-vercel': return tsVercelTemplate(repoName, description)
+    case 'typescript-docker':
+    default: return tsDockerTemplate(repoName, description)
+  }
+}
+
+/* ── Control Plane: scaffold & registry ────────────────────── */
+
+export interface ScaffoldResult {
+  repo: Repo
+  template: RepoTemplate
+  registryEntry: RegistryEntry
+  deployCommands: string[]
+  verifySteps: string[]
+}
+
+export async function scaffoldRepository(
+  name: string,
+  description: string,
+  templateName: string,
+  isPrivate = true,
+): Promise<ScaffoldResult> {
+  const template = getTemplate(templateName, name, description)
+
+  const repo = await createRepo(name, description, isPrivate)
+  const ctx: RepoCtx = { owner: repo.owner.login, repo: repo.name }
+
+  for (const file of template.files) {
+    await putFile(
+      ctx,
+      file.path,
+      encodeContent(file.content),
+      `scaffold(${template.name}): add ${file.path}`,
+    )
+  }
+
+  const registryEntry: RegistryEntry = {
+    repoName: repo.name,
+    owner: repo.owner.login,
+    templateName: template.name,
+    templateVersion: template.version,
+    deployTarget: template.deployTarget,
+    requiredConfig: template.secrets,
+    status: 'active',
+    upgradePath: null,
+    createdAt: new Date().toISOString(),
+  }
+
+  let deployCommands: string[]
+  switch (template.deployTarget) {
+    case 'vercel': deployCommands = [`VERCEL_TOKEN=$VERCEL_TOKEN npx vercel --prod`]; break
+    case 'docker': deployCommands = [`docker build -t ${name} .`, `docker run -p 3000:3000 ${name}`]; break
+    default: deployCommands = [`# Deploy manually for target: ${template.deployTarget}`]
+  }
+
+  const verifySteps = [
+    `git clone https://github.com/${ctx.owner}/${ctx.repo}.git`,
+    `cd ${ctx.repo}`,
+    `npm install`,
+    `npm run build`,
+  ]
+
+  return { repo, template, registryEntry, deployCommands, verifySteps }
+}
+
+const REGISTRY_VAR = 'LC_REGISTRY'
+
+export async function fetchRegistry(ctx: RepoCtx): Promise<RegistryEntry[]> {
+  const vars = await fetchVariables(ctx)
+  const regVar = vars.find(v => v.name === REGISTRY_VAR)
+  if (!regVar) return []
+  try { return JSON.parse(regVar.value) as RegistryEntry[] } catch { return [] }
+}
+
+export async function saveRegistryEntry(ctx: RepoCtx, entry: RegistryEntry): Promise<void> {
+  const existing = await fetchRegistry(ctx)
+  const idx = existing.findIndex(e => e.repoName === entry.repoName && e.owner === entry.owner)
+  if (idx >= 0) existing[idx] = entry
+  else existing.push(entry)
+  await setVariable(ctx, REGISTRY_VAR, JSON.stringify(existing))
+}
+
+export async function archiveRegistryEntry(ctx: RepoCtx, owner: string, repoName: string): Promise<void> {
+  const existing = await fetchRegistry(ctx)
+  const idx = existing.findIndex(e => e.repoName === repoName && e.owner === owner)
+  if (idx < 0) throw new Error(`Unit ${owner}/${repoName} not found in registry`)
+  existing[idx] = { ...existing[idx], status: 'archived' }
+  await setVariable(ctx, REGISTRY_VAR, JSON.stringify(existing))
+}
+
+/** Compute deploy commands for a registry entry based on its deploy target. */
+export function deployCommandsForEntry(entry: RegistryEntry): string[] {
+  switch (entry.deployTarget) {
+    case 'vercel': return [`VERCEL_TOKEN=$VERCEL_TOKEN npx vercel --prod`]
+    case 'docker': return [`docker build -t ${entry.repoName} .`, `docker run -p 3000:3000 ${entry.repoName}`]
+    default: return [`# Deploy manually for target: ${entry.deployTarget}`]
+  }
+}
+
+/** Compute verification steps for a registry entry. */
+export function verifyStepsForEntry(entry: RegistryEntry): string[] {
+  return [
+    `git clone https://github.com/${entry.owner}/${entry.repoName}.git`,
+    `cd ${entry.repoName}`,
+    `npm install`,
+    `npm run build`,
+  ]
+}
 
 /* ── Environment scaffolding ───────────────────────────────── */
 

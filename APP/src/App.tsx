@@ -1,11 +1,20 @@
 import { useState, useEffect, useCallback, useRef, useMemo, type FormEvent } from 'react'
 import './App.css'
 import * as gh from './github'
-import type { RepoCtx, RepoTier, DeploymentStatus } from './github'
+import type { RepoCtx, RepoTier, DeploymentStatus, RegistryEntry } from './github'
 
 /* ── helpers ───────────────────────────────────────────────── */
 
 const NA = '—'
+
+function sanitizeSlug(raw: string): string {
+    return raw.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+}
+
+function workflowFileName(path: string): string {
+    const idx = path.lastIndexOf('/')
+    return idx >= 0 ? path.slice(idx + 1) : path
+}
 
 function relativeTime(iso: string): string {
     const diff = Date.now() - new Date(iso).getTime()
@@ -59,6 +68,7 @@ interface LiveState {
     issues: gh.Issue[]
     prs: gh.PR[]
     runs: gh.WorkflowRun[]
+    workflows: gh.Workflow[]
     branches: gh.Branch[]
     labels: gh.Label[]
     variables: gh.Variable[]
@@ -69,7 +79,7 @@ interface LiveState {
 
 function useLiveData(ctx: RepoCtx | null) {
     const [state, setState] = useState<LiveState>({
-        repo: null, issues: [], prs: [], runs: [], branches: [], labels: [], variables: [],
+        repo: null, issues: [], prs: [], runs: [], workflows: [], branches: [], labels: [], variables: [],
         loading: false, error: null, lastFetch: null,
     })
 
@@ -77,16 +87,17 @@ function useLiveData(ctx: RepoCtx | null) {
         if (!ctx) return
         setState(p => ({ ...p, loading: true, error: null }))
         try {
-            const [repo, issues, prs, runs, branches, labels, variables] = await Promise.all([
+            const [repo, issues, prs, runs, workflows, branches, labels, variables] = await Promise.all([
                 gh.fetchRepo(ctx),
                 gh.fetchIssues(ctx, 'all').catch(() => [] as gh.Issue[]),
                 gh.fetchPRs(ctx).catch(() => [] as gh.PR[]),
                 gh.fetchWorkflowRuns(ctx).catch(() => [] as gh.WorkflowRun[]),
+                gh.fetchWorkflows(ctx).catch(() => [] as gh.Workflow[]),
                 gh.fetchBranches(ctx).catch(() => [] as gh.Branch[]),
                 gh.fetchLabels(ctx).catch(() => [] as gh.Label[]),
                 gh.fetchVariables(ctx).catch(() => [] as gh.Variable[]),
             ])
-            setState({ repo, issues, prs, runs, branches, labels, variables, loading: false, error: null, lastFetch: new Date() })
+            setState({ repo, issues, prs, runs, workflows, branches, labels, variables, loading: false, error: null, lastFetch: new Date() })
         } catch (err) {
             setState(p => ({ ...p, loading: false, error: err instanceof Error ? err.message : 'Fetch failed' }))
         }
@@ -364,19 +375,163 @@ function TokenSetup({ onSaved }: { onSaved: () => void }) {
 
 /* ── universal create modal ────────────────────────────────── */
 
-function CreateModal({ onClose }: { onClose: () => void }) {
+function CreateModal({ ctx, onClose, toast, onCreated, workflows, activeBranch }: {
+    ctx: RepoCtx
+    onClose: () => void
+    toast: (msg: string, type: ToastType) => void
+    onCreated: () => void
+    workflows: gh.Workflow[]
+    activeBranch: string
+}) {
+    const [active, setActive] = useState<string | null>(null)
+    const [submitting, setSubmitting] = useState(false)
+    const [labelColor, setLabelColor] = useState('0075ca')
     const options = ['Issue', 'Pull Request', 'Branch', 'Label', 'File', 'Environment', 'Variable', 'Workflow', 'Repository']
+
+    async function handleIssue(e: FormEvent<HTMLFormElement>) {
+        e.preventDefault()
+        const fd = new FormData(e.currentTarget)
+        const title = (fd.get('title') as string).trim()
+        if (!title) return
+        setSubmitting(true)
+        try {
+            await gh.createIssue(ctx, title, (fd.get('body') as string).trim() || undefined)
+            toast('Issue created', 'success')
+            onCreated()
+            onClose()
+        } catch (err) { toast(`Failed: ${err instanceof Error ? err.message : 'unknown'}`, 'error') }
+        setSubmitting(false)
+    }
+
+    async function handleLabel(e: FormEvent<HTMLFormElement>) {
+        e.preventDefault()
+        const fd = new FormData(e.currentTarget)
+        const name = (fd.get('name') as string).trim()
+        const color = (fd.get('color') as string).replace('#', '').trim()
+        if (!name || !color) return
+        setSubmitting(true)
+        try {
+            await gh.createLabel(ctx, name, color, (fd.get('description') as string).trim() || undefined)
+            toast('Label created', 'success')
+            onCreated()
+            onClose()
+        } catch (err) { toast(`Failed: ${err instanceof Error ? err.message : 'unknown'}`, 'error') }
+        setSubmitting(false)
+    }
+
+    async function handleVariable(e: FormEvent<HTMLFormElement>) {
+        e.preventDefault()
+        const fd = new FormData(e.currentTarget)
+        const name = (fd.get('name') as string).trim()
+        const value = (fd.get('value') as string).trim()
+        if (!name || !value) return
+        setSubmitting(true)
+        try {
+            await gh.setVariable(ctx, name, value)
+            toast('Variable saved', 'success')
+            onCreated()
+            onClose()
+        } catch (err) { toast(`Failed: ${err instanceof Error ? err.message : 'unknown'}`, 'error') }
+        setSubmitting(false)
+    }
+
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                    <h2>Create</h2>
-                    <button type="button" onClick={onClose}>✕</button>
+                    <h2>{active ? `Create ${active}` : 'Create'}</h2>
+                    <button type="button" onClick={() => active ? setActive(null) : onClose()}>
+                        {active ? '← Back' : '✕'}
+                    </button>
                 </div>
                 <div className="modal-body">
-                    {options.map(o => (
-                        <button key={o} className="modal-option" type="button">{o}</button>
+                    {!active && options.map(o => (
+                        <button key={o} className="modal-option" type="button" onClick={() => setActive(o)}>{o}</button>
                     ))}
+
+                    {active === 'Issue' && (
+                        <form className="create-form" onSubmit={handleIssue}>
+                            <input name="title" className="form-input" placeholder="Issue title" required autoFocus />
+                            <textarea name="body" className="form-input create-textarea" placeholder="Description (optional)" rows={4} />
+                            <button className="button primary" type="submit" disabled={submitting}>{submitting ? 'Creating…' : 'Create Issue'}</button>
+                        </form>
+                    )}
+
+                    {active === 'Label' && (
+                        <form className="create-form" onSubmit={handleLabel}>
+                            <input name="name" className="form-input" placeholder="Label name" required autoFocus />
+                            <div className="create-color-row">
+                                <input name="color" className="form-input" placeholder="Color hex (e.g. d73a4a)" value={labelColor} onChange={e => setLabelColor(e.target.value.replace('#', ''))} />
+                                <span className="create-color-preview" style={{ background: `#${labelColor}` }} />
+                            </div>
+                            <input name="description" className="form-input" placeholder="Description (optional)" />
+                            <button className="button primary" type="submit" disabled={submitting}>{submitting ? 'Creating…' : 'Create Label'}</button>
+                        </form>
+                    )}
+
+                    {active === 'Variable' && (
+                        <form className="create-form" onSubmit={handleVariable}>
+                            <input name="name" className="form-input" placeholder="Variable name (e.g. MY_CONFIG)" required autoFocus />
+                            <input name="value" className="form-input" placeholder="Value" required />
+                            <button className="button primary" type="submit" disabled={submitting}>{submitting ? 'Saving…' : 'Save Variable'}</button>
+                        </form>
+                    )}
+
+                    {active === 'Workflow' && (
+                        <form className="create-form" onSubmit={async (e: FormEvent<HTMLFormElement>) => {
+                            e.preventDefault()
+                            const fd = new FormData(e.currentTarget)
+                            const wfId = (fd.get('workflow') as string).trim()
+                            const ref = (fd.get('ref') as string).trim() || activeBranch
+                            if (!wfId) return
+                            setSubmitting(true)
+                            try {
+                                await gh.triggerWorkflow(ctx, wfId, ref)
+                                toast(`Workflow dispatched on ${ref}`, 'success')
+                                onCreated()
+                                onClose()
+                            } catch (err) { toast(`Failed: ${err instanceof Error ? err.message : 'unknown'}`, 'error') }
+                            setSubmitting(false)
+                        }}>
+                            {workflows.length > 0
+                                ? <select name="workflow" className="picker-select" required>
+                                    <option value="">Select workflow…</option>
+                                    {workflows.map(w => (
+                                        <option key={w.id} value={workflowFileName(w.path)}>{w.name}</option>
+                                    ))}
+                                </select>
+                                : <input name="workflow" className="form-input" placeholder="Workflow file (e.g. app-build.yml)" required autoFocus />
+                            }
+                            <input name="ref" className="form-input" placeholder={`Branch (default: ${activeBranch})`} />
+                            <button className="button primary" type="submit" disabled={submitting}>{submitting ? 'Dispatching…' : 'Run Workflow'}</button>
+                        </form>
+                    )}
+
+                    {active === 'Environment' && (
+                        <form className="create-form" onSubmit={async (e: FormEvent<HTMLFormElement>) => {
+                            e.preventDefault()
+                            const fd = new FormData(e.currentTarget)
+                            const slug = sanitizeSlug(fd.get('slug') as string)
+                            const desc = (fd.get('description') as string).trim()
+                            if (!slug) return
+                            setSubmitting(true)
+                            try {
+                                await gh.createEnvironment(ctx, slug, desc || slug, activeBranch)
+                                toast(`Environment "${slug}" created`, 'success')
+                                onCreated()
+                                onClose()
+                            } catch (err) { toast(`Failed: ${err instanceof Error ? err.message : 'unknown'}`, 'error') }
+                            setSubmitting(false)
+                        }}>
+                            <input name="slug" className="form-input" placeholder="Environment name (e.g. staging)" required autoFocus />
+                            <input name="description" className="form-input" placeholder="Description (optional)" />
+                            <button className="button primary" type="submit" disabled={submitting}>{submitting ? 'Creating…' : 'Create Environment'}</button>
+                        </form>
+                    )}
+
+                    {active && !['Issue', 'Label', 'Variable', 'Workflow', 'Environment'].includes(active) && (
+                        <p className="empty-state">Coming soon — use the GitHub API or CLI to create a {active.toLowerCase()} for now</p>
+                    )}
                 </div>
             </div>
         </div>
@@ -385,7 +540,7 @@ function CreateModal({ onClose }: { onClose: () => void }) {
 
 /* ── command palette ───────────────────────────────────────── */
 
-const NAV_PAGES = ['Dashboard', 'Today', 'Issues', 'PRs', 'Lists', 'CI', 'Pipeline', 'Branches', 'Labels', 'Files', 'Projects', 'Playbooks', 'Tools', 'Cases', 'Vault', 'Environments', 'Settings'] as const
+const NAV_PAGES = ['Dashboard', 'Today', 'Issues', 'PRs', 'Lists', 'CI', 'Pipeline', 'Branches', 'Labels', 'Files', 'Projects', 'Playbooks', 'Tools', 'Cases', 'Vault', 'Environments', 'Registry', 'Settings'] as const
 type NavPage = (typeof NAV_PAGES)[number]
 
 const NAV_GROUPS: { label: string; pages: readonly NavPage[] }[] = [
@@ -445,6 +600,15 @@ export default function App() {
     const [openFile, setOpenFile] = useState<{ path: string; content: string; sha: string } | null>(null)
     const [editContent, setEditContent] = useState('')
     const [commitMsg, setCommitMsg] = useState('')
+    const [registry, setRegistry] = useState<RegistryEntry[]>([])
+    const [scaffoldOpen, setScaffoldOpen] = useState(false)
+    const [scaffoldTemplate, setScaffoldTemplate] = useState('typescript-docker')
+    const [scaffolding, setScaffolding] = useState(false)
+    const [inspectEntry, setInspectEntry] = useState<RegistryEntry | null>(null)
+    const [lastScaffold, setLastScaffold] = useState<gh.ScaffoldResult | null>(null)
+    const [vaultAddOpen, setVaultAddOpen] = useState(false)
+    const [runFormOpen, setRunFormOpen] = useState(false)
+    const [envFormOpen, setEnvFormOpen] = useState(false)
     const { toasts, push: toast } = useToasts()
     const live = useLiveData(ctx)
     const activeBranch = live.repo?.default_branch ?? 'main'
@@ -463,6 +627,15 @@ export default function App() {
             .catch(() => { if (!cancelled) setDirEntries([]) })
         return () => { cancelled = true }
     }, [page, ctx, filePath, activeBranch])
+
+    useEffect(() => {
+        if (page !== 'Registry' || !ctx) return
+        let cancelled = false
+        gh.fetchRegistry(ctx)
+            .then(entries => { if (!cancelled) setRegistry(entries) })
+            .catch(() => { if (!cancelled) setRegistry([]) })
+        return () => { cancelled = true }
+    }, [page, ctx])
 
     if (!ctx) {
         return (
@@ -616,6 +789,41 @@ export default function App() {
 
                 {page === 'CI' && (
                     <section className="page-ci">
+                        <div className="page-header">
+                            <h2>CI</h2>
+                            <button className="button primary" type="button" onClick={() => setRunFormOpen(!runFormOpen)}>
+                                {runFormOpen ? '✕ Cancel' : '▶ Run Workflow'}
+                            </button>
+                        </div>
+                        {runFormOpen && (
+                            <form className="surface run-workflow-form" onSubmit={async (e: FormEvent) => {
+                                e.preventDefault()
+                                if (!ctx) return
+                                if (!gh.hasToken()) { toast('Set a GitHub token in Settings to perform actions', 'error'); return }
+                                const fd = new FormData(e.currentTarget as HTMLFormElement)
+                                const wfId = (fd.get('workflow') as string).trim()
+                                const ref = (fd.get('ref') as string).trim() || activeBranch
+                                if (!wfId) return
+                                try {
+                                    await gh.triggerWorkflow(ctx, wfId, ref)
+                                    toast(`Workflow dispatched on ${ref}`, 'success')
+                                    setRunFormOpen(false)
+                                    setTimeout(() => live.refresh(), 2000)
+                                } catch (e) { toast(`Failed: ${e instanceof Error ? e.message : 'unknown'}`, 'error') }
+                            }}>
+                                {live.workflows.length > 0
+                                    ? <select name="workflow" className="picker-select" required>
+                                        <option value="">Select workflow…</option>
+                                        {live.workflows.map(w => (
+                                            <option key={w.id} value={workflowFileName(w.path)}>{w.name}</option>
+                                        ))}
+                                    </select>
+                                    : <input name="workflow" className="form-input" placeholder="Workflow file (e.g. app-build.yml)" required autoFocus />
+                                }
+                                <input name="ref" className="form-input" placeholder={`Branch (default: ${activeBranch})`} />
+                                <button className="button primary" type="submit">Dispatch</button>
+                            </form>
+                        )}
                         {live.runs.length === 0
                             ? <EmptyState text="No workflow runs" loading={live.loading} />
                             : <div className="item-list">
@@ -798,13 +1006,48 @@ export default function App() {
 
                 {page === 'Vault' && (
                     <section className="page-vault">
-                        {live.variables.length === 0
+                        <div className="page-header">
+                            <h2>Vault</h2>
+                            <button className="button primary" type="button" onClick={() => setVaultAddOpen(!vaultAddOpen)}>
+                                {vaultAddOpen ? '✕ Cancel' : '+ Add Variable'}
+                            </button>
+                        </div>
+                        {vaultAddOpen && (
+                            <form className="surface vault-add-form" onSubmit={async (e: FormEvent) => {
+                                e.preventDefault()
+                                if (!ctx) return
+                                if (!gh.hasToken()) { toast('Set a GitHub token in Settings to perform actions', 'error'); return }
+                                const fd = new FormData(e.currentTarget as HTMLFormElement)
+                                const name = (fd.get('name') as string).trim()
+                                const value = (fd.get('value') as string).trim()
+                                if (!name || !value) return
+                                try {
+                                    await gh.setVariable(ctx, name, value)
+                                    toast(`Variable "${name}" saved`, 'success')
+                                    setVaultAddOpen(false)
+                                    live.refresh()
+                                } catch (e) { toast(`Failed: ${e instanceof Error ? e.message : 'unknown'}`, 'error') }
+                            }}>
+                                <input name="name" className="form-input" placeholder="Variable name (e.g. MY_CONFIG)" required autoFocus />
+                                <input name="value" className="form-input" placeholder="Value" required />
+                                <button className="button primary" type="submit">Save Variable</button>
+                            </form>
+                        )}
+                        {live.variables.length === 0 && !vaultAddOpen
                             ? <EmptyState text="No variables in vault" loading={live.loading} />
                             : <div className="item-list">
                                 {live.variables.map(v => (
                                     <div key={v.name} className="item-row vault-row">
                                         <span className="vault-name">{v.name}</span>
                                         <span className="vault-value">{v.value}</span>
+                                        <button className="button vault-delete" type="button" onClick={async () => {
+                                            if (!ctx) return
+                                            try {
+                                                await gh.deleteVariable(ctx, v.name)
+                                                toast(`Deleted "${v.name}"`, 'success')
+                                                live.refresh()
+                                            } catch (e) { toast(`Failed: ${e instanceof Error ? e.message : 'unknown'}`, 'error') }
+                                        }}>Delete</button>
                                     </div>
                                 ))}
                             </div>
@@ -814,6 +1057,33 @@ export default function App() {
 
                 {page === 'Environments' && (
                     <section className="page-environments">
+                        <div className="page-header">
+                            <h2>Environments</h2>
+                            <button className="button primary" type="button" onClick={() => setEnvFormOpen(!envFormOpen)}>
+                                {envFormOpen ? '✕ Cancel' : '+ New Environment'}
+                            </button>
+                        </div>
+                        {envFormOpen && (
+                            <form className="surface env-create-form" onSubmit={async (e: FormEvent) => {
+                                e.preventDefault()
+                                if (!ctx) return
+                                if (!gh.hasToken()) { toast('Set a GitHub token in Settings to perform actions', 'error'); return }
+                                const fd = new FormData(e.currentTarget as HTMLFormElement)
+                                const slug = sanitizeSlug(fd.get('slug') as string)
+                                const desc = (fd.get('description') as string).trim()
+                                if (!slug) return
+                                try {
+                                    const result = await gh.createEnvironment(ctx, slug, desc || slug, activeBranch)
+                                    toast(`Environment "${slug}" created on ${result.branch}`, 'success')
+                                    setEnvFormOpen(false)
+                                    live.refresh()
+                                } catch (e) { toast(`Failed: ${e instanceof Error ? e.message : 'unknown'}`, 'error') }
+                            }}>
+                                <input name="slug" className="form-input" placeholder="Environment name (e.g. staging, dev)" required autoFocus />
+                                <input name="description" className="form-input" placeholder="Description (optional)" />
+                                <button className="button primary" type="submit">Create Environment</button>
+                            </form>
+                        )}
                         {envBranches.length === 0
                             ? <EmptyState text="No environments" loading={live.loading} />
                             : <div className="item-list">
@@ -825,6 +1095,159 @@ export default function App() {
                                 ))}
                             </div>
                         }
+                    </section>
+                )}
+
+                {page === 'Registry' && (
+                    <section className="page-registry">
+                        <div className="page-header">
+                            <h2>Registry</h2>
+                            <button className="button primary" type="button" onClick={() => { setScaffoldOpen(!scaffoldOpen); setLastScaffold(null) }}>
+                                {scaffoldOpen ? '✕ Cancel' : '+ Scaffold Unit'}
+                            </button>
+                        </div>
+                        {scaffoldOpen && (
+                            <form className="surface registry-scaffold-form" onSubmit={async (e: FormEvent) => {
+                                e.preventDefault()
+                                if (!ctx) return
+                                if (!gh.hasToken()) { toast('Set a GitHub token in Settings to perform actions', 'error'); return }
+                                const fd = new FormData(e.currentTarget as HTMLFormElement)
+                                const rName = (fd.get('name') as string).trim()
+                                const rDesc = (fd.get('description') as string).trim()
+                                const rPrivate = fd.get('private') === 'on'
+                                if (!rName) return
+                                const existing = registry.find(en => en.repoName === rName && en.owner === ctx.owner)
+                                if (existing) { toast(`Unit "${rName}" already exists in the registry`, 'error'); return }
+                                setScaffolding(true)
+                                try {
+                                    const result = await gh.scaffoldRepository(rName, rDesc || rName, scaffoldTemplate, rPrivate)
+                                    await gh.saveRegistryEntry(ctx, result.registryEntry)
+                                    setRegistry(prev => [...prev, result.registryEntry])
+                                    setLastScaffold(result)
+                                    setScaffoldOpen(false)
+                                    toast(`Scaffolded ${result.repo.full_name} with ${result.template.name}@${result.template.version}`, 'success')
+                                } catch (e) { toast(`Failed: ${e instanceof Error ? e.message : 'unknown'}`, 'error') }
+                                setScaffolding(false)
+                            }}>
+                                <input name="name" className="form-input" placeholder="Unit name" required autoFocus />
+                                <input name="description" className="form-input" placeholder="Description" />
+                                <div className="scaffold-row">
+                                    <label className="picker-filter-label">Template</label>
+                                    <select className="picker-select" value={scaffoldTemplate} onChange={e => setScaffoldTemplate(e.target.value)}>
+                                        {gh.BUILTIN_TEMPLATES.map(t => (
+                                            <option key={t.name} value={t.name}>{t.name}@{t.version} — {t.description}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <label className="form-checkbox"><input name="private" type="checkbox" defaultChecked /> Make private</label>
+                                <button className="button primary" type="submit" disabled={scaffolding}>{scaffolding ? 'Scaffolding…' : 'Scaffold Unit'}</button>
+                            </form>
+                        )}
+                        {lastScaffold && (
+                            <div className="surface scaffold-result" data-testid="scaffold-result">
+                                <h3>Scaffold Complete</h3>
+                                <div className="scaffold-section">
+                                    <h4>Unit Structure</h4>
+                                    <ul>{lastScaffold.template.files.map(f => <li key={f.path}><code>{f.path}</code></li>)}</ul>
+                                </div>
+                                <div className="scaffold-section">
+                                    <h4>Required Configuration</h4>
+                                    <ul>{lastScaffold.registryEntry.requiredConfig.map(s => <li key={s}><code>{s}</code></li>)}</ul>
+                                </div>
+                                <div className="scaffold-section">
+                                    <h4>Deploy Commands</h4>
+                                    <pre>{lastScaffold.deployCommands.join('\n')}</pre>
+                                </div>
+                                <div className="scaffold-section">
+                                    <h4>Verification Steps</h4>
+                                    <ol>{lastScaffold.verifySteps.map((s, i) => <li key={i}><code>{s}</code></li>)}</ol>
+                                </div>
+                                <div className="scaffold-section">
+                                    <h4>Identity Card</h4>
+                                    <dl className="identity-card">
+                                        <dt>Unit</dt><dd>{lastScaffold.registryEntry.owner}/{lastScaffold.registryEntry.repoName}</dd>
+                                        <dt>Template</dt><dd>{lastScaffold.registryEntry.templateName}@{lastScaffold.registryEntry.templateVersion}</dd>
+                                        <dt>Deployment context</dt><dd>{lastScaffold.registryEntry.deployTarget}</dd>
+                                        <dt>Status</dt><dd>{lastScaffold.registryEntry.status}</dd>
+                                    </dl>
+                                </div>
+                                <button className="button" type="button" onClick={() => setLastScaffold(null)}>Dismiss</button>
+                            </div>
+                        )}
+                        {inspectEntry && (
+                            <div className="surface inspect-panel" data-testid="inspect-panel">
+                                <div className="inspect-header">
+                                    <h3>Inspect: {inspectEntry.owner}/{inspectEntry.repoName}</h3>
+                                    <button type="button" onClick={() => setInspectEntry(null)}>✕</button>
+                                </div>
+                                <dl className="identity-card">
+                                    <dt>Unit</dt><dd>{inspectEntry.owner}/{inspectEntry.repoName}</dd>
+                                    <dt>Owner</dt><dd>{inspectEntry.owner}</dd>
+                                    <dt>Template</dt><dd>{inspectEntry.templateName}@{inspectEntry.templateVersion}</dd>
+                                    <dt>Deployment context</dt><dd>{inspectEntry.deployTarget}</dd>
+                                    <dt>Configuration keys</dt><dd>{inspectEntry.requiredConfig.join(', ') || 'None'}</dd>
+                                    <dt>Status</dt><dd>{inspectEntry.status}</dd>
+                                    <dt>Upgrade path</dt><dd>{inspectEntry.upgradePath ?? 'None'}</dd>
+                                    <dt>Created</dt><dd>{inspectEntry.createdAt}</dd>
+                                </dl>
+                                <div className="scaffold-section">
+                                    <h4>Deploy Commands</h4>
+                                    <pre>{gh.deployCommandsForEntry(inspectEntry).join('\n')}</pre>
+                                </div>
+                                <div className="scaffold-section">
+                                    <h4>Verification Steps</h4>
+                                    <ol>{gh.verifyStepsForEntry(inspectEntry).map((s, i) => <li key={i}><code>{s}</code></li>)}</ol>
+                                </div>
+                            </div>
+                        )}
+                        <div className="registry-templates">
+                            <h3>Available Templates</h3>
+                            <div className="item-list">
+                                {gh.BUILTIN_TEMPLATES.map(t => (
+                                    <div key={t.name} className="item-row registry-tpl-row">
+                                        <span className="registry-tpl-name">{t.name}@{t.version}</span>
+                                        <span className={`tag deploy-${t.deployTarget}`}>{t.deployTarget}</span>
+                                        <span className="registry-tpl-desc">{t.description}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="registry-entries">
+                            <h3>Registered Units</h3>
+                            {registry.length === 0
+                                ? <EmptyState text="No units registered — scaffold a unit to add it to the registry" loading={live.loading} />
+                                : <div className="item-list">
+                                    {registry.map(entry => (
+                                        <div key={`${entry.owner}/${entry.repoName}`} className="item-row registry-entry-row">
+                                            <div className="item-main">
+                                                <div className="item-title-row">
+                                                    <span className="registry-repo-name">{entry.owner}/{entry.repoName}</span>
+                                                    <span className={`tag registry-status-${entry.status}`}>{entry.status}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="tag">{entry.templateName}@{entry.templateVersion}</span>
+                                                    <span className={`tag deploy-${entry.deployTarget}`}>{entry.deployTarget}</span>
+                                                    {entry.requiredConfig.length > 0 && <span className="registry-secrets">Config: {entry.requiredConfig.join(', ')}</span>}
+                                                </div>
+                                            </div>
+                                            <div className="registry-actions">
+                                                <button className="button" type="button" onClick={() => setInspectEntry(entry)}>Inspect</button>
+                                                {entry.status !== 'archived' && (
+                                                    <button className="button" type="button" onClick={async () => {
+                                                        if (!ctx) return
+                                                        try {
+                                                            await gh.archiveRegistryEntry(ctx, entry.owner, entry.repoName)
+                                                            setRegistry(prev => prev.map(e => e.repoName === entry.repoName && e.owner === entry.owner ? { ...e, status: 'archived' } : e))
+                                                            toast(`Archived ${entry.owner}/${entry.repoName}`, 'success')
+                                                        } catch (e) { toast(`Failed: ${e instanceof Error ? e.message : 'unknown'}`, 'error') }
+                                                    }}>Archive</button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            }
+                        </div>
                     </section>
                 )}
 
@@ -850,7 +1273,7 @@ export default function App() {
                 />
             )}
 
-            {createOpen && <CreateModal onClose={() => setCreateOpen(false)} />}
+            {createOpen && <CreateModal ctx={ctx} onClose={() => setCreateOpen(false)} toast={toast} onCreated={live.refresh} workflows={live.workflows} activeBranch={activeBranch} />}
         </div>
     )
 }

@@ -937,6 +937,41 @@
 	word-break: break-all;
 }
 
+.vault-delete {
+	margin-left: auto;
+	flex-shrink: 0;
+	font-size: var(--text-xs);
+	color: #ef4444;
+}
+
+.vault-add-form,
+.run-workflow-form,
+.env-create-form {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	padding: var(--space-4);
+	margin-bottom: var(--space-4);
+}
+
+.create-textarea {
+	min-height: 80px;
+	resize: vertical;
+}
+
+.create-color-row {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+.create-color-preview {
+	width: 24px;
+	height: 24px;
+	border-radius: var(--radius-sm);
+	flex-shrink: 0;
+}
+
 .button.danger {
 	color: var(--color-danger);
 	border-color: rgba(239, 68, 68, 0.25);
@@ -1154,4 +1189,151 @@
 		flex-direction: column;
 		align-items: stretch;
 	}
+}
+
+/* ── Registry page ──────────────────────────────────────────── */
+
+.page-registry {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-4);
+}
+
+.registry-scaffold-form {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	padding: var(--space-4);
+	margin-bottom: var(--space-2);
+}
+
+.scaffold-row {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+}
+
+.registry-templates,
+.registry-entries {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+}
+
+.registry-templates h3,
+.registry-entries h3 {
+	font-size: 1rem;
+	font-weight: 600;
+	margin: 0;
+}
+
+.registry-tpl-row {
+	gap: var(--space-3);
+}
+
+.registry-tpl-name {
+	font-weight: 600;
+	font-family: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
+	font-size: 0.85rem;
+}
+
+.registry-tpl-desc {
+	color: var(--color-muted);
+	font-size: 0.85rem;
+}
+
+.registry-repo-name {
+	font-weight: 600;
+}
+
+.registry-secrets {
+	font-size: 0.8rem;
+	color: var(--color-muted);
+}
+
+.registry-actions {
+	display: flex;
+	gap: var(--space-2);
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+.registry-status-active { background: #166534; color: #fff; }
+.registry-status-provisioning { background: #854d0e; color: #fff; }
+.registry-status-archived { background: var(--color-muted); color: #fff; }
+
+/* ── Scaffold result / inspect panel ────────────────────────── */
+
+.scaffold-result,
+.inspect-panel {
+	padding: var(--space-4);
+	margin-bottom: var(--space-4);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+}
+
+.scaffold-result h3,
+.inspect-panel h3 {
+	margin: 0;
+	font-size: 1.1rem;
+	font-weight: 700;
+}
+
+.inspect-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.scaffold-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+}
+
+.scaffold-section h4 {
+	margin: 0;
+	font-size: 0.9rem;
+	font-weight: 600;
+	color: var(--color-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.scaffold-section pre {
+	margin: 0;
+	padding: var(--space-3);
+	background: var(--color-bg);
+	border-radius: var(--radius-sm);
+	font-size: 0.85rem;
+	overflow-x: auto;
+}
+
+.scaffold-section ul,
+.scaffold-section ol {
+	margin: 0;
+	padding-left: var(--space-4);
+}
+
+.scaffold-section li {
+	margin-bottom: var(--space-1);
+}
+
+.identity-card {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: var(--space-1) var(--space-3);
+	margin: 0;
+}
+
+.identity-card dt {
+	font-weight: 600;
+	color: var(--color-muted);
+	font-size: 0.85rem;
+}
+
+.identity-card dd {
+	margin: 0;
+	font-size: 0.85rem;
 }

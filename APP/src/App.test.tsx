@@ -295,7 +295,7 @@ describe('Shell after repo selection', () => {
 
   it('renders all nav items', async () => {
     await renderAndPick()
-    const navLabels = ['Dashboard', 'Today', 'Issues', 'PRs', 'Lists', 'CI', 'Pipeline', 'Branches', 'Labels', 'Files', 'Registry', 'Projects', 'Playbooks', 'Tools', 'Cases', 'Vault', 'Environments', 'Settings']
+    const navLabels = ['Dashboard', 'Today', 'Issues', 'PRs', 'Lists', 'CI', 'Pipeline', 'Branches', 'Labels', 'Files', 'Registry', 'Projects', 'Playbooks', 'Tools', 'Cases', 'Vault', 'Environments', 'Prompt', 'Settings']
     for (const label of navLabels) {
       expect(screen.getByRole('button', { name: new RegExp(label) })).toBeInTheDocument()
     }
@@ -500,6 +500,21 @@ describe('Shell after repo selection', () => {
     await renderAndPick()
     fireEvent.click(screen.getByRole('button', { name: /^Tools/ }))
     expect(screen.getByText(/No tools configured/)).toBeInTheDocument()
+  })
+
+  it('navigates to Prompt page', async () => {
+    await renderAndPick()
+    fireEvent.click(screen.getByRole('button', { name: /^Prompt/ }))
+    expect(screen.getByText('Integration Prompt')).toBeInTheDocument()
+    expect(screen.getByText('Copy Prompt')).toBeInTheDocument()
+  })
+
+  it('Prompt page changes embed mode', async () => {
+    await renderAndPick()
+    fireEvent.click(screen.getByRole('button', { name: /^Prompt/ }))
+    const select = screen.getByDisplayValue('iframe (simplest)')
+    fireEvent.change(select, { target: { value: 'component' } })
+    expect(screen.getByDisplayValue('React component (monorepo)')).toBeInTheDocument()
   })
 
   it('navigates to Settings page', async () => {

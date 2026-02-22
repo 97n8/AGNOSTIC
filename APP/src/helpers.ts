@@ -2,7 +2,7 @@
 
 export const NA = '—'
 
-export const NAV_PAGES = ['Dashboard', 'Today', 'Issues', 'PRs', 'Lists', 'CI', 'Pipeline', 'Branches', 'Labels', 'Files', 'Registry', 'Projects', 'Playbooks', 'Tools', 'Cases', 'Vault', 'Environments', 'Settings'] as const
+export const NAV_PAGES = ['Dashboard', 'Today', 'Issues', 'PRs', 'Lists', 'CI', 'Pipeline', 'Branches', 'Labels', 'Files', 'Registry', 'Projects', 'Playbooks', 'Tools', 'Cases', 'Vault', 'Environments', 'Prompt', 'Settings'] as const
 export type NavPage = (typeof NAV_PAGES)[number]
 
 export function relativeTime(iso: string): string {
@@ -40,7 +40,7 @@ export const NAV_GROUPS: { label: string; pages: readonly NavPage[] }[] = [
     { label: 'Overview', pages: ['Dashboard', 'Today'] },
     { label: 'Work', pages: ['Issues', 'PRs', 'Lists', 'Cases'] },
     { label: 'Infrastructure', pages: ['CI', 'Pipeline', 'Branches', 'Files', 'Vault', 'Environments'] },
-    { label: 'Governance', pages: ['Labels', 'Registry', 'Projects', 'Playbooks', 'Tools'] },
+    { label: 'Governance', pages: ['Labels', 'Registry', 'Projects', 'Playbooks', 'Tools', 'Prompt'] },
     { label: '', pages: ['Settings'] },
 ]
 
@@ -62,6 +62,7 @@ export const NAV_ICONS: Record<NavPage, string> = {
     Projects: '⊟',
     Playbooks: '▷',
     Tools: '⛭',
+    Prompt: '✎',
     Settings: '⚙',
 }
 

@@ -28,6 +28,7 @@ import VaultPage from './pages/VaultPage'
 import EnvironmentsPage from './pages/EnvironmentsPage'
 import SettingsPage from './pages/SettingsPage'
 import RegistryPage from './pages/RegistryPage'
+import PromptPage from './pages/PromptPage'
 
 export default function App() {
     const [ctx, setCtx] = useState<RepoCtx | null>(null)
@@ -141,6 +142,7 @@ export default function App() {
                 {page === 'Labels' && <LabelsPage labels={live.labels} loading={live.loading} ctx={ctx} />}
                 {page === 'Files' && <FilesPage dirEntries={dirEntries} filePath={filePath} setFilePath={setFilePath} ctx={ctx} activeBranch={activeBranch} toast={toast} />}
                 {page === 'Registry' && <RegistryPage ctx={ctx} loading={live.loading} toast={toast} />}
+                {page === 'Prompt' && <PromptPage ctx={ctx} />}
                 {page === 'Projects' && <ProjectsPage loading={live.loading} ctx={ctx} />}
                 {page === 'Playbooks' && <PlaybooksPage loading={live.loading} ctx={ctx} />}
                 {page === 'Tools' && <ToolsPage loading={live.loading} ctx={ctx} />}
